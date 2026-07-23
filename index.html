@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Pagamentos - Advocacia</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Tela de Login -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-card card">
+                <div class="card__body">
+                    <!-- Logo e Nome dentro do quadro de login -->
+                    <div class="login-header-flex flex items-center justify-center gap-16 mb-20">
+                        <img src="bg.jpg" alt="Logo da Empresa" class="app-logo app-logo--login">
+                        <div class="text-left">
+                            <h1 class="login-title m-0">Evelyn e Nathalia</h1>
+                            <p class="login-subtitle m-0">Controle de Pagamentos e Cobranças</p>
+                        </div>
+                    </div>
+                    
+                    <div id="firebase-status" class="firebase-status">
+                        <span id="firebase-indicator" class="status-indicator status-indicator--warning"></span>
+                        <span id="firebase-status-text">Conectando ao Firebase...</span>
+                    </div>
+                    
+                    <form id="login-form" class="login-form">
+                        <div class="form-group">
+                            <label for="user-select" class="form-label">Usuário:</label>
+                            <select id="user-select" class="form-control" required>
+                                <option value="">-- Selecione --</option>
+                                <option value="Nathalia">Nathalia</option>
+                                <option value="Evelyn">Evelyn</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="password" class="form-label">Senha:</label>
+                            <input type="password" id="password" class="form-control" placeholder="Digite sua senha" required>
+                        </div>
+                        <button type="submit" id="login-btn" class="btn btn--primary btn--full-width">
+                            <span id="login-btn-text">Entrar</span>
+                        </button>
+                    </form>
+                    <div id="login-error" class="error-message hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Principal -->
+    <div id="dashboard-screen" class="screen">
+        <div class="dashboard-header">
+            <div class="container">
+                <div class="header-content">
+                    <div class="header-info flex items-center gap-16">
+                        <!-- Logo maior na dashboard -->
+                        <img src="bg.jpg" alt="Logo da Empresa" class="app-logo app-logo--dashboard">
+                        <div>
+                            <h2>Painel Principal</h2>
+                            <p id="user-info">Bem-vindo!</p>
+                            <p id="datetime-info">Data e hora</p>
+                        </div>
+                    </div>
+                    <button id="logout-btn" class="btn btn--outline">Sair</button>
+                </div>
+                <!-- Alertas do Dashboard -->
+                <div class="alert-panel mt-8" style="display: flex; gap: 10px;">
+                    <div id="btn-dashboard-atrasados" class="card" style="flex: 1; background-color: var(--color-bg-4); border-color: var(--color-error); cursor: pointer; transition: transform 0.2s;" title="Clique para ver Estatísticas">
+                        <div class="card__body text-center">
+                            <h4 class="text-error">Parcelas em Atraso</h4>
+                            <h2 id="alert-atrasados">0</h2>
+                        </div>
+                    </div>
+                    <div class="card" style="flex: 1; background-color: var(--color-bg-2); border-color: var(--color-warning);">
+                        <div class="card__body text-center">
+                            <h4 class="text-warning">Vencem Hoje</h4>
+                            <h2 id="alert-hoje">0</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="container">
+            <div class="dashboard-content">
+                <h3>Selecione uma opção:</h3>
+                <div class="dashboard-buttons">
+                    <button id="nav-cad-cliente" class="btn btn--info btn--lg"><span>👤+</span> Cadastrar Cliente</button>
+                    <button id="nav-catalogo" class="btn btn--secondary btn--lg"><span>📋</span> Catálogo Clientes</button>
+                    <button id="nav-cadastro" class="btn btn--success btn--lg"><span>📝</span> Cadastrar Contrato</button>
+                    <button id="nav-basedados" class="btn btn--secondary btn--lg"><span>🗄️</span> Base Contratos</button>
+                    <button id="nav-clientes" class="btn btn--primary btn--lg"><span>🔍</span> Pesquisa por Cliente</button>
+                    <button id="nav-pesquisa-data" class="btn btn--primary btn--lg"><span>📅</span> Pesquisa por Data</button>
+                    <button id="nav-estatistica" class="btn btn--info btn--lg"><span>📊</span> Estatística</button>
+                    <button id="nav-perfil" class="btn btn--profile btn--lg"><span>⚙️</span> Perfil</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Cadastro Cliente -->
+    <div id="cadastro-cliente-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Cadastro de Cliente</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="form-container">
+                <form id="cadastro-cliente-form" class="card">
+                    <div class="card__body">
+                        <div class="form-group">
+                            <label class="form-label">Nome do Cliente *</label>
+                            <input type="text" id="cad-cli-nome" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Endereço</label>
+                            <input type="text" id="cad-cli-endereco" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Telefone</label>
+                            <input type="text" id="cad-cli-telefone" class="form-control">
+                        </div>
+                        <button type="submit" class="btn btn--success btn--full-width mt-8">Salvar Cliente</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Catálogo de Clientes -->
+    <div id="catalogo-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Catálogo de Clientes</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="card mb-8">
+                <div class="card__body flex gap-8 items-center">
+                    <input type="text" id="filtro-nome-cliente" class="form-control" placeholder="Pesquisar por nome...">
+                </div>
+            </div>
+            <div class="table-container card">
+                <table class="data-table" id="tabela-catalogo">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Endereço</th>
+                            <th>Telefone</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Cadastro Contrato -->
+    <div id="cadastro-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Cadastro de Contrato</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="form-container">
+                <form id="cadastro-form" class="card">
+                    <div class="card__body">
+                        <div class="form-group">
+                            <label class="form-label">Cliente *</label>
+                            <select id="cad-cliente" class="form-control" required>
+                                <option value="">-- Selecione o Cliente --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Título do Contrato *</label>
+                            <input type="text" id="cad-titulo" class="form-control" placeholder="Ex: Ação de Cobrança, Divórcio, etc." required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Valor Total do Contrato (R$) *</label>
+                            <input type="number" step="0.01" id="cad-valor" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Número de Parcelas *</label>
+                            <input type="number" id="cad-parcelas" class="form-control" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Valor das Parcelas (R$)</label>
+                            <input type="number" step="0.01" id="cad-valor-parcela" class="form-control" readonly>
+                        </div>
+                        
+                        <div id="cad-parcelas-container" class="mt-8">
+                            <!-- Gerado dinamicamente -->
+                        </div>
+
+                        <button type="submit" class="btn btn--success btn--full-width mt-8">Salvar Contrato</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Clientes (Pesquisa de Contratos por Nome) -->
+    <div id="clientes-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Pesquisa por Cliente</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="card mb-8">
+                <div class="card__body flex gap-8 items-center">
+                    <input type="text" id="pesquisa-cliente-nome" class="form-control" placeholder="Digite o nome do cliente...">
+                    <button id="btn-pesquisar-cliente" class="btn btn--primary">Pesquisar</button>
+                </div>
+            </div>
+            <div class="table-container card">
+                <table class="data-table" id="tabela-pesquisa-cliente">
+                    <thead>
+                        <tr>
+                            <th>Ações</th>
+                            <th>Cliente</th>
+                            <th>Título do Contrato</th>
+                            <th>Valor Total</th>
+                            <th>Qtd Parcelas</th>
+                            <th>Próximo Prazo</th>
+                            <th>Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Pesquisa por Data -->
+    <div id="pesquisa-data-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Pesquisa por Data de Vencimento</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="card mb-8">
+                <div class="card__body flex gap-8 items-center">
+                    <input type="date" id="pesquisa-data-input" class="form-control">
+                    <button id="btn-pesquisar-data" class="btn btn--primary">Pesquisar</button>
+                    <button id="btn-salvar-pesquisa-data" class="btn btn--success">Salvar Alterações</button>
+                </div>
+            </div>
+            <div class="table-container card">
+                <table class="data-table" id="tabela-pesquisa-data">
+                    <thead>
+                        <tr>
+                            <th>Pago?</th>
+                            <th>Cliente</th>
+                            <th>Título Contrato</th>
+                            <th>Valor Total</th>
+                            <th>Parcela</th>
+                            <th>Prazo</th>
+                            <th>Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Base de Dados -->
+    <div id="basedados-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Base de Dados - Contratos</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="card mb-8">
+                <div class="card__body flex gap-8">
+                    <select id="filtro-situacao" class="form-control">
+                        <option value="">Todas as Situações</option>
+                        <option value="Aberto">Aberto</option>
+                        <option value="Pago">Pago</option>
+                        <option value="Atrasado">Atrasado</option>
+                    </select>
+                    <input type="date" id="filtro-data" class="form-control">
+                </div>
+            </div>
+            <div class="table-container card">
+                <table class="data-table" id="tabela-basedados">
+                    <thead>
+                        <tr>
+                            <th>Data Registro</th>
+                            <th>Cliente</th>
+                            <th>Título Contrato</th>
+                            <th>Total (R$)</th>
+                            <th>Parcelas</th>
+                            <th>Situação Geral</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Estatística -->
+    <div id="estatistica-screen" class="screen">
+        <div class="screen-header">
+            <div class="container">
+                <div class="header-content">
+                    <h2>Estatísticas e Atrasos</h2>
+                    <button class="btn btn--outline btn-voltar">Voltar</button>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="dashboard-buttons mb-8">
+                <div class="card"><div class="card__body text-center"><h4 class="text-success">Parcelas Pagas</h4><h2 id="est-pagas">0</h2></div></div>
+                <div class="card"><div class="card__body text-center"><h4>Contratos em Aberto</h4><h2 id="est-abertos">0</h2></div></div>
+                <div class="card"><div class="card__body text-center"><h4 class="text-error">Parcelas Atrasadas</h4><h2 id="est-atrasados">0</h2></div></div>
+            </div>
+            
+            <h3 class="mb-8 mt-8">Detalhamento de Atrasos</h3>
+            <div class="table-container card">
+                <table class="data-table" id="tabela-atrasos">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Título Contrato</th>
+                            <th>Valor Total</th>
+                            <th>Nº Parcela</th>
+                            <th>Valor Parcela</th>
+                            <th>Prazo</th>
+                            <th style="cursor:pointer;" id="sort-dias">Dias de Atraso ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gerenciar Parcelas do Contrato -->
+    <div id="parcelas-modal" class="modal hidden">
+        <div class="modal-content modal-content--large">
+            <div class="modal-header"><h3 id="modal-parcelas-titulo">Gerenciar Parcelas</h3></div>
+            <div class="modal-body">
+                <form id="parcelas-modal-form">
+                    <input type="hidden" id="modal-contrato-id">
+                    <div id="modal-parcelas-container"></div>
+                    <div class="modal-footer mt-8">
+                        <button type="submit" class="btn btn--success">Salvar Alterações</button>
+                        <button type="button" class="btn btn--outline btn-fechar-modal">Fechar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmação de Exclusão -->
+    <div id="delete-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div class="modal-header"><h3>Excluir Entrada</h3></div>
+            <div class="modal-body my-16">
+                <input type="hidden" id="delete-id">
+                <p>Tem certeza que deseja excluir essa entrada?</p>
+            </div>
+            <div class="modal-footer justify-center" style="gap: 15px;">
+                <button type="button" id="btn-confirmar-exclusao" class="btn btn--danger" style="background: var(--color-error); color: white;">Sim</button>
+                <button type="button" class="btn btn--outline btn-fechar-modal">Não</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Edição (Base de Dados) -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content modal-content--large">
+            <div class="modal-header"><h3>Editar Contrato</h3></div>
+            <div class="modal-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-id">
+                    <div class="form-group">
+                        <label>Cliente</label>
+                        <input type="text" id="edit-cliente" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Título do Contrato</label>
+                        <input type="text" id="edit-titulo" class="form-control" required>
+                    </div>
+                    <div id="edit-parcelas-container"></div>
+                    <div class="modal-footer mt-8">
+                        <button type="submit" class="btn btn--success">Salvar</button>
+                        <button type="button" class="btn btn--outline btn-fechar-modal">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Perfil -->
+    <div id="profile-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header"><h3>Perfil e Senha</h3></div>
+            <div class="modal-body">
+                <form id="password-form">
+                    <div class="form-group"><label>Nova Senha</label><input type="password" id="new-password" class="form-control" required></div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn--success">Alterar Senha</button>
+                        <button type="button" class="btn btn--outline btn-fechar-modal">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
