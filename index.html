@@ -55,7 +55,6 @@
             <div class="container">
                 <div class="header-content">
                     <div class="header-info flex items-center gap-16">
-                        <!-- Logo maior na dashboard -->
                         <img src="bg.jpg" alt="Logo da Empresa" class="app-logo app-logo--dashboard">
                         <div>
                             <h2>Painel Principal</h2>
@@ -156,6 +155,7 @@
                             <th>Nome</th>
                             <th>Endereço</th>
                             <th>Telefone</th>
+                            <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -178,12 +178,24 @@
             <div class="form-container">
                 <form id="cadastro-form" class="card">
                     <div class="card__body">
+                        
+                        <!-- Campo de Pesquisa de Cliente com Autocomplete -->
+                        <div class="form-group autocomplete-container">
+                            <label class="form-label">Pesquisar Cliente</label>
+                            <div class="flex gap-8">
+                                <input type="text" id="search-cliente-input" class="form-control" placeholder="Digite o nome do cliente para buscar...">
+                                <button type="button" id="btn-pesquisar-cliente-cad" class="btn btn--primary">Pesquisar</button>
+                            </div>
+                            <div id="autocomplete-results" class="autocomplete-list hidden"></div>
+                        </div>
+
                         <div class="form-group">
-                            <label class="form-label">Cliente *</label>
+                            <label class="form-label">Cliente Selecionado *</label>
                             <select id="cad-cliente" class="form-control" required>
                                 <option value="">-- Selecione o Cliente --</option>
                             </select>
                         </div>
+
                         <div class="form-group">
                             <label class="form-label">Título do Contrato *</label>
                             <input type="text" id="cad-titulo" class="form-control" placeholder="Ex: Ação de Cobrança, Divórcio, etc." required>
@@ -355,10 +367,15 @@
                             <th>Valor Parcela</th>
                             <th>Prazo</th>
                             <th style="cursor:pointer;" id="sort-dias">Dias de Atraso ↕</th>
+                            <th class="text-center">Marcar Pago</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+            <div class="flex justify-between items-center mt-16 mb-32">
+                <div></div>
+                <button id="btn-salvar-atrasos" class="btn btn--success btn--lg">Salvar Alterações</button>
             </div>
         </div>
     </div>
@@ -380,7 +397,7 @@
         </div>
     </div>
 
-    <!-- Modal Confirmação de Exclusão -->
+    <!-- Modal Confirmação de Exclusão de Contrato -->
     <div id="delete-modal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px; text-align: center;">
             <div class="modal-header"><h3>Excluir Entrada</h3></div>
@@ -395,7 +412,50 @@
         </div>
     </div>
 
-    <!-- Modal Edição (Base de Dados) -->
+    <!-- Modal Confirmação de Exclusão de Cliente -->
+    <div id="delete-cliente-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div class="modal-header"><h3>Excluir Cliente</h3></div>
+            <div class="modal-body my-16">
+                <input type="hidden" id="delete-cliente-id">
+                <p>Tem certeza que deseja realmente excluir este cliente?</p>
+            </div>
+            <div class="modal-footer justify-center" style="gap: 15px;">
+                <button type="button" id="btn-confirmar-exclusao-cliente" class="btn btn--danger" style="background: var(--color-error); color: white;">Sim</button>
+                <button type="button" class="btn btn--outline btn-fechar-modal">Não</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Edição de Cliente -->
+    <div id="edit-cliente-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header"><h3>Editar Cliente</h3></div>
+            <div class="modal-body">
+                <form id="edit-cliente-form">
+                    <input type="hidden" id="edit-cli-id">
+                    <div class="form-group">
+                        <label class="form-label">Nome do Cliente *</label>
+                        <input type="text" id="edit-cli-nome" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Endereço</label>
+                        <input type="text" id="edit-cli-endereco" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telefone</label>
+                        <input type="text" id="edit-cli-telefone" class="form-control">
+                    </div>
+                    <div class="modal-footer mt-8">
+                        <button type="submit" class="btn btn--success">Salvar</button>
+                        <button type="button" class="btn btn--outline btn-fechar-modal">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Edição (Base de Dados Contratos) -->
     <div id="edit-modal" class="modal hidden">
         <div class="modal-content modal-content--large">
             <div class="modal-header"><h3>Editar Contrato</h3></div>

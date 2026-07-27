@@ -2923,3 +2923,41 @@ resize: vertical;
     color: var(--color-primary);
     letter-spacing: normal;
 }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Adicione ao seu arquivo CSS existente para suporte ao Autocomplete de Cliente */
+.autocomplete-container {
+    position: relative;
+}
+
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius-base) var(--radius-base);
+    box-shadow: var(--shadow-md);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.autocomplete-item {
+    padding: var(--space-8) var(--space-12);
+    cursor: pointer;
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-card-border-inner);
+    transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.autocomplete-item:hover {
+    background-color: var(--color-bg-1);
+    color: var(--color-primary);
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
