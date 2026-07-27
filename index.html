@@ -12,7 +12,6 @@
         <div class="login-container">
             <div class="login-card card">
                 <div class="card__body">
-                    <!-- Logo e Nome dentro do quadro de login -->
                     <div class="login-header-flex flex items-center justify-center gap-16 mb-20">
                         <img src="bg.jpg" alt="Logo da Empresa" class="app-logo app-logo--login">
                         <div class="text-left">
@@ -179,7 +178,7 @@
                 <form id="cadastro-form" class="card">
                     <div class="card__body">
                         
-                        <!-- Campo de Pesquisa de Cliente com Autocomplete -->
+                        <!-- Pesquisa de Cliente -->
                         <div class="form-group autocomplete-container">
                             <label class="form-label">Pesquisar Cliente</label>
                             <div class="flex gap-8">
@@ -203,6 +202,10 @@
                         <div class="form-group">
                             <label class="form-label">Valor Total do Contrato (R$) *</label>
                             <input type="number" step="0.01" id="cad-valor" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Valor de Entrada (R$)</label>
+                            <input type="number" step="0.01" id="cad-entrada" class="form-control" placeholder="0.00">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Número de Parcelas *</label>
@@ -365,6 +368,7 @@
                             <th>Valor Total</th>
                             <th>Nº Parcela</th>
                             <th>Valor Parcela</th>
+                            <th>Entrada</th>
                             <th>Prazo</th>
                             <th style="cursor:pointer;" id="sort-dias">Dias de Atraso ↕</th>
                             <th class="text-center">Marcar Pago</th>
@@ -380,13 +384,17 @@
         </div>
     </div>
 
-    <!-- Modal Gerenciar Parcelas do Contrato -->
+    <!-- Modal Gerenciar Parcelas do Contrato (Menu Pesquisa) -->
     <div id="parcelas-modal" class="modal hidden">
         <div class="modal-content modal-content--large">
             <div class="modal-header"><h3 id="modal-parcelas-titulo">Gerenciar Parcelas</h3></div>
             <div class="modal-body">
                 <form id="parcelas-modal-form">
                     <input type="hidden" id="modal-contrato-id">
+                    <div class="form-group">
+                        <label class="form-label">Valor de Entrada (R$)</label>
+                        <input type="number" step="0.01" id="modal-entrada" class="form-control">
+                    </div>
                     <div id="modal-parcelas-container"></div>
                     <div class="modal-footer mt-8">
                         <button type="submit" class="btn btn--success">Salvar Alterações</button>
@@ -469,6 +477,10 @@
                     <div class="form-group">
                         <label>Título do Contrato</label>
                         <input type="text" id="edit-titulo" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Valor de Entrada (R$)</label>
+                        <input type="number" step="0.01" id="edit-entrada" class="form-control">
                     </div>
                     <div id="edit-parcelas-container"></div>
                     <div class="modal-footer mt-8">

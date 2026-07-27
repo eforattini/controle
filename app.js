@@ -338,21 +338,35 @@ function resetCadastroContratoForm() {
     autocompleteResults.classList.add('hidden');
 }
 
-// --- CADASTRO CONTRATOS ---
+// --- CADASTRO CONTRATOS & CÁLCULO DA PARCELA COM ENTRADA ---
+function calcularValorParcela() {
+    const qtd = parseInt(document.getElementById('cad-parcelas').value) || 0;
+    const total = parseFloat(document.getElementById('cad-valor').value) || 0;
+    const entrada = parseFloat(document.getElementById('cad-entrada').value) || 0;
+
+    const valorAposEntrada = Math.max(0, total - entrada);
+    document.getElementById('cad-valor-parcela').value = qtd > 0 ? (valorAposEntrada / qtd).toFixed(2) : "";
+}
+
 document.getElementById('cad-parcelas').addEventListener('input', () => {
+    calcularValorParcela();
     gerarCamposParcelas();
 });
 
 document.getElementById('cad-valor').addEventListener('input', () => {
-    const qtd = parseInt(document.getElementById('cad-parcelas').value) || 0;
-    const total = parseFloat(document.getElementById('cad-valor').value) || 0;
-    document.getElementById('cad-valor-parcela').value = qtd > 0 ? (total / qtd).toFixed(2) : "";
+    calcularValorParcela();
+    if (parseInt(document.getElementById('cad-parcelas').value) > 0) {
+        gerarCamposParcelas();
+    }
+});
+
+document.getElementById('cad-entrada').addEventListener('input', () => {
+    calcularValorParcela();
 });
 
 function gerarCamposParcelas() {
     const qtd = parseInt(document.getElementById('cad-parcelas').value) || 0;
-    const total = parseFloat(document.getElementById('cad-valor').value) || 0;
-    document.getElementById('cad-valor-parcela').value = qtd > 0 ? (total / qtd).toFixed(2) : "";
+    calcularValorParcela();
     
     const container = document.getElementById('cad-parcelas-container');
     container.innerHTML = "";
@@ -404,6 +418,7 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
         cliente: document.getElementById('cad-cliente').value,
         titulo: document.getElementById('cad-titulo').value,
         valorTotal: parseFloat(document.getElementById('cad-valor').value),
+        valorEntrada: parseFloat(document.getElementById('cad-entrada').value) || 0,
         numeroParcelas: parseInt(document.getElementById('cad-parcelas').value),
         valorParcela: parseFloat(document.getElementById('cad-valor-parcela').value),
         dataCriacao: formatPtBr(now),
@@ -465,6 +480,7 @@ window.abrirModalParcelas = (contratoId) => {
     if (!contrato) return;
 
     document.getElementById('modal-contrato-id').value = contrato.id;
+    document.getElementById('modal-entrada').value = contrato.valorEntrada || 0;
     document.getElementById('modal-parcelas-titulo').textContent = `Parcelas do Contrato: ${contrato.titulo || 'Sem Título'} (${contrato.cliente})`;
 
     let html = "";
@@ -487,17 +503,20 @@ window.abrirModalParcelas = (contratoId) => {
 document.getElementById('parcelas-modal-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const contratoId = document.getElementById('modal-contrato-id').value;
+    const novaEntrada = parseFloat(document.getElementById('modal-entrada').value) || 0;
     const prazosDOM = document.querySelectorAll('.modal-prazo');
     const pagosDOM = document.querySelectorAll('.modal-pago');
 
     let alteracoes = {};
+    alteracoes[`contratos/${contratoId}/valorEntrada`] = novaEntrada;
+
     prazosDOM.forEach((input, idx) => {
         alteracoes[`contratos/${contratoId}/parcelas/${idx}/prazo`] = input.value;
         alteracoes[`contratos/${contratoId}/parcelas/${idx}/paga`] = pagosDOM[idx].checked;
     });
 
     await update(ref(database), alteracoes);
-    alert("Parcelas atualizadas com sucesso!");
+    alert("Contrato e parcelas atualizados com sucesso!");
     document.getElementById('parcelas-modal').classList.add('hidden');
     document.getElementById('btn-pesquisar-cliente').click();
 });
@@ -586,6 +605,7 @@ window.abrirEdicao = (id) => {
     document.getElementById('edit-id').value = c.id;
     document.getElementById('edit-cliente').value = c.cliente;
     document.getElementById('edit-titulo').value = c.titulo || '';
+    document.getElementById('edit-entrada').value = c.valorEntrada || 0;
     
     let html = "";
     c.parcelas.forEach((p, i) => {
@@ -605,11 +625,14 @@ document.getElementById('edit-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-id').value;
     const novoTitulo = document.getElementById('edit-titulo').value;
+    const novaEntrada = parseFloat(document.getElementById('edit-entrada').value) || 0;
     const prazos = document.querySelectorAll('.edit-prazo');
     const pagos = document.querySelectorAll('.edit-pago');
     
     let atualizacao = {};
     atualizacao[`contratos/${id}/titulo`] = novoTitulo;
+    atualizacao[`contratos/${id}/valorEntrada`] = novaEntrada;
+
     prazos.forEach((p, i) => {
         atualizacao[`contratos/${id}/parcelas/${i}/prazo`] = prazos[i].value;
         atualizacao[`contratos/${id}/parcelas/${i}/paga`] = pagos[i].checked;
@@ -688,6 +711,7 @@ function renderEstatistica() {
                     total: c.valorTotal,
                     num: p.numero,
                     valor: c.valorParcela,
+                    entrada: c.valorEntrada || 0,
                     prazoStr: formatPtBr(dataPrazo),
                     dias: diasAtraso
                 });
@@ -698,7 +722,7 @@ function renderEstatistica() {
     listaAtrasos.sort((a, b) => sortDiasDesc ? b.dias - a.dias : a.dias - b.dias);
     
     if (listaAtrasos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center">Nenhuma parcela em atraso!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center">Nenhuma parcela em atraso!</td></tr>`;
         return;
     }
 
@@ -709,6 +733,7 @@ function renderEstatistica() {
             <td>R$ ${item.total.toFixed(2)}</td>
             <td>${item.num}</td>
             <td>R$ ${item.valor.toFixed(2)}</td>
+            <td>R$ ${item.entrada.toFixed(2)}</td>
             <td>${item.prazoStr}</td>
             <td class="text-error"><strong>${item.dias}</strong></td>
             <td class="text-center">
