@@ -103,7 +103,7 @@ function showScreen(id) {
 // Botões Dashboard
 document.getElementById('nav-cad-cliente').onclick = () => showScreen('cadastro-cliente-screen');
 document.getElementById('nav-catalogo').onclick = () => { renderCatalogo(); showScreen('catalogo-screen'); };
-document.getElementById('nav-cadastro').onclick = () => showScreen('cadastro-screen');
+document.getElementById('nav-cadastro').onclick = () => { resetCadastroContratoForm(); showScreen('cadastro-screen'); };
 document.getElementById('nav-clientes').onclick = () => showScreen('clientes-screen');
 document.getElementById('nav-pesquisa-data').onclick = () => showScreen('pesquisa-data-screen');
 document.getElementById('nav-basedados').onclick = () => { renderBaseDados(); showScreen('basedados-screen'); };
@@ -202,10 +202,12 @@ document.getElementById('cadastro-cliente-form').addEventListener('submit', asyn
 
 function atualizarSelectClientes() {
     const select = document.getElementById('cad-cliente');
+    const valorAtual = select.value;
     select.innerHTML = '<option value="">-- Selecione o Cliente --</option>';
     todosClientes.forEach(cli => {
         select.innerHTML += `<option value="${cli.nome}">${cli.nome}</option>`;
     });
+    if (valorAtual) select.value = valorAtual;
 }
 
 function renderCatalogo() {
@@ -219,12 +221,122 @@ function renderCatalogo() {
                 <td>${cli.nome}</td>
                 <td>${cli.endereco || '-'}</td>
                 <td>${cli.telefone || '-'}</td>
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn--sm btn--edit" onclick="abrirEdicaoCliente('${cli.id}')">Editar</button>
+                        <button class="btn btn--sm btn--delete" onclick="abrirExclusaoCliente('${cli.id}')">Excluir</button>
+                    </div>
+                </td>
             </tr>
         `;
     });
 }
 document.getElementById('filtro-nome-cliente').addEventListener('input', renderCatalogo);
 
+// --- EDIÇÃO E EXCLUSÃO DE CLIENTES ---
+window.abrirEdicaoCliente = (id) => {
+    const cli = todosClientes.find(c => c.id === id);
+    if (!cli) return;
+    document.getElementById('edit-cli-id').value = cli.id;
+    document.getElementById('edit-cli-nome').value = cli.nome;
+    document.getElementById('edit-cli-endereco').value = cli.endereco || '';
+    document.getElementById('edit-cli-telefone').value = cli.telefone || '';
+    document.getElementById('edit-cliente-modal').classList.remove('hidden');
+};
+
+document.getElementById('edit-cliente-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-cli-id').value;
+    const nome = document.getElementById('edit-cli-nome').value.toUpperCase();
+    const endereco = document.getElementById('edit-cli-endereco').value;
+    const telefone = document.getElementById('edit-cli-telefone').value;
+
+    await update(ref(database, `clientes/${id}`), { nome, endereco, telefone });
+    alert("Cliente atualizado com sucesso!");
+    document.getElementById('edit-cliente-modal').classList.add('hidden');
+    renderCatalogo();
+});
+
+window.abrirExclusaoCliente = (id) => {
+    document.getElementById('delete-cliente-id').value = id;
+    document.getElementById('delete-cliente-modal').classList.remove('hidden');
+};
+
+document.getElementById('btn-confirmar-exclusao-cliente').onclick = async () => {
+    const id = document.getElementById('delete-cliente-id').value;
+    if (!id) return;
+
+    try {
+        await remove(ref(database, `clientes/${id}`));
+        alert("Cliente excluído com sucesso!");
+        document.getElementById('delete-cliente-modal').classList.add('hidden');
+        renderCatalogo();
+    } catch (err) {
+        alert("Erro ao excluir cliente.");
+    }
+};
+
+// --- PESQUISA DE CLIENTE NA TELA DE CADASTRO DE CONTRATO ---
+const searchClienteInput = document.getElementById('search-cliente-input');
+const autocompleteResults = document.getElementById('autocomplete-results');
+const selectClienteCad = document.getElementById('cad-cliente');
+const btnPesquisarClienteCad = document.getElementById('btn-pesquisar-cliente-cad');
+
+function filtrarEExibirClientes(termo) {
+    const filtro = termo.trim().toUpperCase();
+    autocompleteResults.innerHTML = "";
+    
+    if (!filtro) {
+        autocompleteResults.classList.add('hidden');
+        return;
+    }
+
+    const filtrados = todosClientes.filter(c => c.nome.includes(filtro));
+    if (filtrados.length === 0) {
+        autocompleteResults.innerHTML = `<div class="autocomplete-item text-center">Nenhum cliente encontrado</div>`;
+    } else {
+        filtrados.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.textContent = c.nome;
+            item.onclick = () => selecionarClientePorNome(c.nome);
+            autocompleteResults.appendChild(item);
+        });
+    }
+    autocompleteResults.classList.remove('hidden');
+}
+
+function selecionarClientePorNome(nome) {
+    searchClienteInput.value = nome;
+    selectClienteCad.value = nome;
+    autocompleteResults.classList.add('hidden');
+}
+
+searchClienteInput.addEventListener('input', (e) => {
+    filtrarEExibirClientes(e.target.value);
+});
+
+btnPesquisarClienteCad.addEventListener('click', () => {
+    filtrarEExibirClientes(searchClienteInput.value);
+});
+
+selectClienteCad.addEventListener('change', (e) => {
+    searchClienteInput.value = e.target.value;
+    autocompleteResults.classList.add('hidden');
+});
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.autocomplete-container')) {
+        autocompleteResults.classList.add('hidden');
+    }
+});
+
+function resetCadastroContratoForm() {
+    document.getElementById('cadastro-form').reset();
+    document.getElementById('cad-parcelas-container').innerHTML = "";
+    searchClienteInput.value = "";
+    autocompleteResults.classList.add('hidden');
+}
 
 // --- CADASTRO CONTRATOS ---
 document.getElementById('cad-parcelas').addEventListener('input', () => {
@@ -302,8 +414,7 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
 
     await push(ref(database, 'contratos'), contrato);
     alert("Contrato cadastrado com sucesso!");
-    e.target.reset();
-    document.getElementById('cad-parcelas-container').innerHTML = "";
+    resetCadastroContratoForm();
     showScreen('dashboard-screen');
 });
 
@@ -432,7 +543,7 @@ document.getElementById('btn-salvar-pesquisa-data').onclick = async () => {
     document.getElementById('btn-pesquisar-data').click();
 };
 
-// --- BASE DE DADOS E EDIÇÃO / EXCLUSÃO ---
+// --- BASE DE DADOS E EDIÇÃO / EXCLUSÃO DE CONTRATOS ---
 function renderBaseDados() {
     const statusFiltro = document.getElementById('filtro-situacao').value;
     const dataFiltro = document.getElementById('filtro-data').value;
@@ -509,7 +620,6 @@ document.getElementById('edit-form').onsubmit = async (e) => {
     alert("Salvo!");
 };
 
-// Funções para Exclusão
 window.abrirExclusao = (id) => {
     document.getElementById('delete-id').value = id;
     document.getElementById('delete-modal').classList.remove('hidden');
@@ -564,13 +674,15 @@ function renderEstatistica() {
     hoje.setHours(0,0,0,0);
 
     todosContratos.forEach(c => {
-        c.parcelas.forEach(p => {
+        c.parcelas.forEach((p, index) => {
             const dataPrazo = new Date(p.prazo + "T12:00:00Z");
             dataPrazo.setHours(0,0,0,0);
             
             if (!p.paga && dataPrazo < hoje) {
                 const diasAtraso = Math.floor((hoje - dataPrazo) / (1000 * 60 * 60 * 24));
                 listaAtrasos.push({
+                    contratoId: c.id,
+                    parcelaIndex: index,
                     cliente: c.cliente,
                     titulo: c.titulo,
                     total: c.valorTotal,
@@ -585,6 +697,11 @@ function renderEstatistica() {
 
     listaAtrasos.sort((a, b) => sortDiasDesc ? b.dias - a.dias : a.dias - b.dias);
     
+    if (listaAtrasos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center">Nenhuma parcela em atraso!</td></tr>`;
+        return;
+    }
+
     tbody.innerHTML = listaAtrasos.map(item => `
         <tr>
             <td>${item.cliente}</td>
@@ -594,6 +711,9 @@ function renderEstatistica() {
             <td>R$ ${item.valor.toFixed(2)}</td>
             <td>${item.prazoStr}</td>
             <td class="text-error"><strong>${item.dias}</strong></td>
+            <td class="text-center">
+                <input type="checkbox" class="chk-atraso-pago" data-id="${item.contratoId}" data-idx="${item.parcelaIndex}" style="width:18px; height:18px; cursor:pointer;">
+            </td>
         </tr>
     `).join('');
 }
@@ -601,4 +721,27 @@ function renderEstatistica() {
 document.getElementById('sort-dias').onclick = () => {
     sortDiasDesc = !sortDiasDesc;
     renderEstatistica();
+};
+
+document.getElementById('btn-salvar-atrasos').onclick = async () => {
+    const checkboxes = document.querySelectorAll('.chk-atraso-pago');
+    let alteracoes = {};
+    let marcados = 0;
+
+    checkboxes.forEach(chk => {
+        if (chk.checked) {
+            alteracoes[`contratos/${chk.dataset.id}/parcelas/${chk.dataset.idx}/paga`] = true;
+            marcados++;
+        }
+    });
+
+    if (marcados === 0) {
+        alert("Nenhuma parcela foi marcada como paga.");
+        return;
+    }
+
+    await update(ref(database), alteracoes);
+    alert(`${marcados} parcela(s) atualizada(s) para paga(s)!`);
+    renderEstatistica();
+    calcularEstatisticas();
 };
