@@ -16,7 +16,7 @@ const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 const auth = getAuth(app);
 
-// --- VERIFICAÇÃO DE CONEXÃO COM O FIREBASE ---
+// --- VERIFICAÇÃO DE CONEXÃO ---
 const connectedRef = ref(database, ".info/connected");
 onValue(connectedRef, (snap) => {
     const indicator = document.getElementById('firebase-indicator');
@@ -45,7 +45,7 @@ let todosContratos = [];
 let todosClientes = [];
 let sortDiasDesc = true;
 
-// --- FUNÇÕES DE TEMPO UTC-3 ---
+// --- FUNÇÕES DE TEMPO UTC-3 E DATAS ---
 function getBrasiliaDate() {
     return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
@@ -59,7 +59,13 @@ function getTodayStringISO() {
     return d.toISOString().split('T')[0];
 }
 
-// Função para somar meses mantendo a integridade da data (YYYY-MM-DD)
+function getCurrentMonthISO() {
+    const d = getBrasiliaDate();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+}
+
 function somarMesesData(dataISO, mesesAdicionar) {
     if (!dataISO) return "";
     const partes = dataISO.split('-');
@@ -110,7 +116,6 @@ document.getElementById('nav-basedados').onclick = () => { renderBaseDados(); sh
 document.getElementById('nav-estatistica').onclick = () => { renderEstatistica(); showScreen('estatistica-screen'); };
 document.getElementById('nav-perfil').onclick = () => document.getElementById('profile-modal').classList.remove('hidden');
 
-// Atalho do Dashboard para Estatísticas (Aviso de Atrasados)
 document.getElementById('btn-dashboard-atrasados').onclick = () => {
     renderEstatistica();
     showScreen('estatistica-screen');
@@ -162,7 +167,17 @@ function carregarDados() {
         if (snapshot.exists()) {
             const data = snapshot.val();
             for (let key in data) {
-                todosContratos.push({ id: key, ...data[key] });
+                // Migração de dados de parcelas antigas para o novo formato
+                let contrato = data[key];
+                if(contrato.parcelas) {
+                    contrato.parcelas = contrato.parcelas.map(p => {
+                        let original = p.valorOriginal || contrato.valorParcela;
+                        let esperado = p.valorEsperado !== undefined ? p.valorEsperado : original;
+                        let pago = p.valorPago !== undefined ? p.valorPago : (p.paga ? esperado : 0);
+                        return { ...p, valorOriginal: original, valorEsperado: esperado, valorPago: pago };
+                    });
+                }
+                todosContratos.push({ id: key, ...contrato });
             }
         }
         todosContratos.sort((a, b) => b.timestamp - a.timestamp);
@@ -180,7 +195,6 @@ function carregarDados() {
         }
         todosClientes.sort((a, b) => a.nome.localeCompare(b.nome));
         atualizarSelectClientes();
-        
         if(!document.getElementById('catalogo-screen').classList.contains('hidden')) renderCatalogo();
     });
 }
@@ -315,16 +329,13 @@ function selecionarClientePorNome(nome) {
 searchClienteInput.addEventListener('input', (e) => {
     filtrarEExibirClientes(e.target.value);
 });
-
 btnPesquisarClienteCad.addEventListener('click', () => {
     filtrarEExibirClientes(searchClienteInput.value);
 });
-
 selectClienteCad.addEventListener('change', (e) => {
     searchClienteInput.value = e.target.value;
     autocompleteResults.classList.add('hidden');
 });
-
 document.addEventListener('click', (e) => {
     if (!e.target.closest('.autocomplete-container')) {
         autocompleteResults.classList.add('hidden');
@@ -338,7 +349,7 @@ function resetCadastroContratoForm() {
     autocompleteResults.classList.add('hidden');
 }
 
-// --- CADASTRO CONTRATOS & CÁLCULO DA PARCELA COM ENTRADA ---
+// --- CADASTRO CONTRATOS & CÁLCULO DA PARCELA ---
 function calcularValorParcela() {
     const qtd = parseInt(document.getElementById('cad-parcelas').value) || 0;
     const total = parseFloat(document.getElementById('cad-valor').value) || 0;
@@ -348,21 +359,9 @@ function calcularValorParcela() {
     document.getElementById('cad-valor-parcela').value = qtd > 0 ? (valorAposEntrada / qtd).toFixed(2) : "";
 }
 
-document.getElementById('cad-parcelas').addEventListener('input', () => {
-    calcularValorParcela();
-    gerarCamposParcelas();
-});
-
-document.getElementById('cad-valor').addEventListener('input', () => {
-    calcularValorParcela();
-    if (parseInt(document.getElementById('cad-parcelas').value) > 0) {
-        gerarCamposParcelas();
-    }
-});
-
-document.getElementById('cad-entrada').addEventListener('input', () => {
-    calcularValorParcela();
-});
+document.getElementById('cad-parcelas').addEventListener('input', () => { calcularValorParcela(); gerarCamposParcelas(); });
+document.getElementById('cad-valor').addEventListener('input', () => { calcularValorParcela(); if (parseInt(document.getElementById('cad-parcelas').value) > 0) gerarCamposParcelas(); });
+document.getElementById('cad-entrada').addEventListener('input', () => { calcularValorParcela(); });
 
 function gerarCamposParcelas() {
     const qtd = parseInt(document.getElementById('cad-parcelas').value) || 0;
@@ -388,12 +387,9 @@ function gerarCamposParcelas() {
 
             const todosPrazos = container.querySelectorAll('.cad-prazo');
             todosPrazos.forEach((input, index) => {
-                if (index > 0) {
-                    input.value = somarMesesData(dataBase, index);
-                }
+                if (index > 0) input.value = somarMesesData(dataBase, index);
             });
         };
-
         primeiraPrazoInput.addEventListener('input', atualizarPrazosSubsequentes);
         primeiraPrazoInput.addEventListener('change', atualizarPrazosSubsequentes);
     }
@@ -401,15 +397,20 @@ function gerarCamposParcelas() {
 
 document.getElementById('cadastro-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+    const valorParcelaBase = parseFloat(document.getElementById('cad-valor-parcela').value);
     const parcelasDOM = document.querySelectorAll('#cad-parcelas-container .parcela-row');
     let parcelas = [];
     
     parcelasDOM.forEach((row, i) => {
+        let isPago = row.querySelector('.cad-pago').checked;
         parcelas.push({
             numero: i + 1,
             prazo: row.querySelector('.cad-prazo').value,
-            paga: row.querySelector('.cad-pago').checked
+            paga: isPago,
+            valorOriginal: valorParcelaBase,
+            valorEsperado: valorParcelaBase,
+            valorPago: isPago ? valorParcelaBase : 0,
+            diffAplicada: false
         });
     });
 
@@ -420,7 +421,8 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
         valorTotal: parseFloat(document.getElementById('cad-valor').value),
         valorEntrada: parseFloat(document.getElementById('cad-entrada').value) || 0,
         numeroParcelas: parseInt(document.getElementById('cad-parcelas').value),
-        valorParcela: parseFloat(document.getElementById('cad-valor-parcela').value),
+        valorParcela: valorParcelaBase, // mantido para compatibilidade base
+        observacao: "", // novo campo
         dataCriacao: formatPtBr(now),
         horaCriacao: now.toLocaleTimeString('pt-BR'),
         timestamp: now.getTime(),
@@ -432,6 +434,206 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
     resetCadastroContratoForm();
     showScreen('dashboard-screen');
 });
+
+// --- LÓGICA COMPARTILHADA DE RENDERIZAÇÃO DE PARCELAS PARA EDIÇÃO ---
+function getStatusSituacao(p) {
+    if(p.paga) {
+        return (p.valorPago < p.valorEsperado) ? "Paga Parc." : "Pago";
+    }
+    return (p.prazo < getTodayStringISO()) ? "Atrasado" : "Aberto";
+}
+
+function renderParcelasEditModal(contrato, containerId, prefix) {
+    const container = document.getElementById(containerId);
+    let html = "";
+    
+    contrato.parcelas.forEach((p, idx) => {
+        let sit = getStatusSituacao(p);
+        let sitClass = p.paga ? (p.valorPago < p.valorEsperado ? 'text-warning' : 'text-success') : (sit === 'Atrasado' ? 'text-error' : 'text-primary');
+
+        html += `
+            <div class="parcela-row" style="flex-wrap: wrap; align-items: flex-end; padding: 10px; margin-bottom:10px;" data-idx="${idx}">
+                <div style="width: 100%; display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <label style="font-weight:bold; font-size: 13px;">Parcela ${p.numero} - <span class="${sitClass}">${sit}</span></label>
+                    <span style="font-size:11px; color:var(--color-text-secondary);">Original: R$ ${p.valorOriginal.toFixed(2)}</span>
+                </div>
+                
+                <input type="hidden" class="${prefix}-original" value="${p.valorOriginal}">
+                <input type="hidden" class="${prefix}-esperado-hidden" value="${p.valorEsperado}">
+                <input type="hidden" class="${prefix}-diff-aplicada" value="${p.diffAplicada ? 'true' : 'false'}">
+
+                <div style="display:flex; gap: 10px; width: 100%; align-items: center; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:120px;">
+                        <span style="font-size:10px;">Prazo</span>
+                        <input type="date" class="form-control ${prefix}-prazo" value="${p.prazo}" required>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-size:10px;">Esperado (R$)</span>
+                        <input type="number" step="0.01" class="form-control ${prefix}-esperado" value="${p.valorEsperado.toFixed(2)}" readonly style="width: 90px; background:var(--color-bg-1);">
+                    </div>
+
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-size:10px;">Pago (R$)</span>
+                        <input type="number" step="0.01" class="form-control ${prefix}-pago-valor" value="${p.valorPago > 0 ? p.valorPago.toFixed(2) : ''}" style="width: 90px;">
+                    </div>
+
+                    <label style="display:flex; align-items:center; gap:4px; margin-top: 15px;">
+                        <input type="checkbox" class="${prefix}-pago-chk" ${p.paga ? 'checked' : ''}> Pago?
+                    </label>
+                </div>
+
+                <div class="${prefix}-diff-container diff-container hidden">
+                    <span style="font-size:11px; color: var(--color-warning);">Pagamento inferior. Ação para a diferença:</span>
+                    <select class="form-control diff-acao-select ${prefix}-diff-acao">
+                        <option value="final">Nova parcela no Final</option>
+                        <option value="proxima">Na próxima parcela</option>
+                        <option value="dividir">Dividir entre as próximas</option>
+                    </select>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+
+    // Adicionando eventos dinâmicos para resumo e verificação de diferença
+    const rows = container.querySelectorAll('.parcela-row');
+    rows.forEach(row => {
+        const chk = row.querySelector(`.${prefix}-pago-chk`);
+        const inputPago = row.querySelector(`.${prefix}-pago-valor`);
+        const inputEsp = row.querySelector(`.${prefix}-esperado-hidden`);
+        const diffCont = row.querySelector(`.${prefix}-diff-container`);
+        const diffAplicada = row.querySelector(`.${prefix}-diff-aplicada`).value === 'true';
+
+        const checkDiff = () => {
+            let pago = parseFloat(inputPago.value) || 0;
+            let esp = parseFloat(inputEsp.value) || 0;
+            // Se já não foi aplicada e é pago parcial
+            if(chk.checked && pago > 0 && pago < esp && !diffAplicada) {
+                diffCont.classList.remove('hidden');
+            } else {
+                diffCont.classList.add('hidden');
+            }
+            atualizarResumoModal(container.closest('.modal-body'), contrato.valorTotal, prefix);
+        };
+
+        chk.addEventListener('change', () => {
+            if(chk.checked && !inputPago.value) {
+                inputPago.value = parseFloat(inputEsp.value).toFixed(2);
+            }
+            if(!chk.checked) inputPago.value = '';
+            checkDiff();
+        });
+        
+        inputPago.addEventListener('input', () => {
+            if(parseFloat(inputPago.value) > 0) chk.checked = true;
+            checkDiff();
+        });
+        
+        // Dispara initial check
+        checkDiff();
+    });
+}
+
+function atualizarResumoModal(modalBody, valorTotalContrato, prefix) {
+    const inputsPago = modalBody.querySelectorAll(`.${prefix}-pago-valor`);
+    let totalPago = 0;
+    inputsPago.forEach(inp => {
+        let chk = inp.closest('.parcela-row').querySelector(`.${prefix}-pago-chk`);
+        if(chk.checked) totalPago += (parseFloat(inp.value) || 0);
+    });
+    
+    let devido = Math.max(0, valorTotalContrato - totalPago);
+
+    modalBody.querySelector('.resumo-original').textContent = valorTotalContrato.toFixed(2);
+    modalBody.querySelector('.resumo-pago').textContent = totalPago.toFixed(2);
+    modalBody.querySelector('.resumo-devido').textContent = devido.toFixed(2);
+}
+
+// Lógica de Processamento de Diferenças ao Salvar
+function extrairEProcessarParcelas(containerId, prefix, contrato) {
+    const rows = document.getElementById(containerId).querySelectorAll('.parcela-row');
+    let memParcelas = [];
+
+    // Extrair do DOM
+    rows.forEach((row, i) => {
+        let oldP = contrato.parcelas[i];
+        let numStr = oldP ? oldP.numero : (i + 1);
+        memParcelas.push({
+            numero: numStr,
+            prazo: row.querySelector(`.${prefix}-prazo`).value,
+            valorOriginal: parseFloat(row.querySelector(`.${prefix}-original`).value),
+            valorEsperado: parseFloat(row.querySelector(`.${prefix}-esperado-hidden`).value),
+            valorPago: row.querySelector(`.${prefix}-pago-chk`).checked ? (parseFloat(row.querySelector(`.${prefix}-pago-valor`).value) || 0) : 0,
+            paga: row.querySelector(`.${prefix}-pago-chk`).checked,
+            diffAplicada: row.querySelector(`.${prefix}-diff-aplicada`).value === 'true',
+            acaoDiff: row.querySelector(`.${prefix}-diff-acao`).value,
+            isExtraFinal: oldP ? (oldP.isExtraFinal || false) : false
+        });
+    });
+
+    // Processar propagações
+    for(let i=0; i<memParcelas.length; i++) {
+        let p = memParcelas[i];
+        
+        // Verifica se é um pagamento parcial e a diferença ainda não foi propagada
+        if(p.paga && p.valorPago > 0 && p.valorPago < p.valorEsperado && !p.diffAplicada) {
+            let diff = p.valorEsperado - p.valorPago;
+            p.diffAplicada = true; // Marca que este desfalque foi repassado adiante
+
+            if(p.acaoDiff === 'proxima') {
+                if(i + 1 < memParcelas.length) {
+                    memParcelas[i+1].valorEsperado += diff;
+                } else {
+                    memParcelas.push(criarNovaParcela(memParcelas, diff));
+                }
+            } else if (p.acaoDiff === 'dividir') {
+                let restantes = memParcelas.length - 1 - i;
+                if(restantes > 0) {
+                    let adicao = diff / restantes;
+                    for(let j=i+1; j<memParcelas.length; j++) {
+                        memParcelas[j].valorEsperado += adicao;
+                    }
+                } else {
+                    memParcelas.push(criarNovaParcela(memParcelas, diff));
+                }
+            } else if (p.acaoDiff === 'final') {
+                let parcelaExtra = memParcelas.find(x => x.isExtraFinal);
+                if(parcelaExtra) {
+                    parcelaExtra.valorEsperado += diff;
+                    parcelaExtra.valorOriginal += diff;
+                } else {
+                    let nova = criarNovaParcela(memParcelas, diff);
+                    nova.isExtraFinal = true;
+                    memParcelas.push(nova);
+                }
+            }
+        }
+    }
+
+    // Limpar propriedades temporárias da interface
+    memParcelas.forEach(p => delete p.acaoDiff);
+    return memParcelas;
+}
+
+function criarNovaParcela(memParcelas, diff) {
+    let ultimaData = memParcelas[memParcelas.length-1].prazo;
+    let novaData = somarMesesData(ultimaData, 1);
+    
+    // Calcula o próximo número
+    let ultimoNum = memParcelas[memParcelas.length-1].numero;
+    let proxNum = typeof ultimoNum === 'number' ? (ultimoNum + 1) : (memParcelas.length + 1);
+
+    return {
+        numero: proxNum,
+        prazo: novaData,
+        valorOriginal: diff,
+        valorEsperado: diff,
+        valorPago: 0,
+        paga: false,
+        diffAplicada: false
+    };
+}
 
 // --- PESQUISA CLIENTES (CONTRATOS) ---
 document.getElementById('btn-pesquisar-cliente').onclick = () => {
@@ -467,7 +669,7 @@ document.getElementById('btn-pesquisar-cliente').onclick = () => {
                 <td>${contrato.cliente}</td>
                 <td>${contrato.titulo || '-'}</td>
                 <td>R$ ${contrato.valorTotal.toFixed(2)}</td>
-                <td>${contrato.numeroParcelas}</td>
+                <td>${contrato.parcelas.length}</td>
                 <td>${proximaPrazoStr}</td>
                 <td>${situacaoContrato}</td>
             </tr>
@@ -481,86 +683,32 @@ window.abrirModalParcelas = (contratoId) => {
 
     document.getElementById('modal-contrato-id').value = contrato.id;
     document.getElementById('modal-entrada').value = contrato.valorEntrada || 0;
+    document.getElementById('modal-observacao').value = contrato.observacao || '';
     document.getElementById('modal-parcelas-titulo').textContent = `Parcelas do Contrato: ${contrato.titulo || 'Sem Título'} (${contrato.cliente})`;
 
-    let html = "";
-    contrato.parcelas.forEach((p, idx) => {
-        const sit = p.paga ? "Pago" : (p.prazo < getTodayStringISO() ? "Atrasado" : "Aberto");
-        html += `
-            <div class="parcela-row">
-                <label>Parc ${p.numero}</label>
-                <input type="date" class="form-control modal-prazo" data-idx="${idx}" value="${p.prazo}" required>
-                <label><input type="checkbox" class="modal-pago" data-idx="${idx}" ${p.paga ? 'checked' : ''}> Pago?</label>
-                <span class="status-indicator-text" style="font-size: 12px; font-weight: bold; margin-left: auto;">${sit}</span>
-            </div>
-        `;
-    });
-
-    document.getElementById('modal-parcelas-container').innerHTML = html;
+    renderParcelasEditModal(contrato, 'modal-parcelas-container', 'modal');
     document.getElementById('parcelas-modal').classList.remove('hidden');
 };
 
 document.getElementById('parcelas-modal-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const contratoId = document.getElementById('modal-contrato-id').value;
+    const contrato = todosContratos.find(c => c.id === contratoId);
     const novaEntrada = parseFloat(document.getElementById('modal-entrada').value) || 0;
-    const prazosDOM = document.querySelectorAll('.modal-prazo');
-    const pagosDOM = document.querySelectorAll('.modal-pago');
+    const obs = document.getElementById('modal-observacao').value;
+    
+    const novasParcelas = extrairEProcessarParcelas('modal-parcelas-container', 'modal', contrato);
 
     let alteracoes = {};
     alteracoes[`contratos/${contratoId}/valorEntrada`] = novaEntrada;
-
-    prazosDOM.forEach((input, idx) => {
-        alteracoes[`contratos/${contratoId}/parcelas/${idx}/prazo`] = input.value;
-        alteracoes[`contratos/${contratoId}/parcelas/${idx}/paga`] = pagosDOM[idx].checked;
-    });
+    alteracoes[`contratos/${contratoId}/observacao`] = obs;
+    alteracoes[`contratos/${contratoId}/parcelas`] = novasParcelas;
 
     await update(ref(database), alteracoes);
     alert("Contrato e parcelas atualizados com sucesso!");
     document.getElementById('parcelas-modal').classList.add('hidden');
     document.getElementById('btn-pesquisar-cliente').click();
 });
-
-// --- PESQUISA POR DATA ---
-document.getElementById('btn-pesquisar-data').onclick = () => {
-    const dataBusca = document.getElementById('pesquisa-data-input').value;
-    const tbody = document.querySelector('#tabela-pesquisa-data tbody');
-    tbody.innerHTML = "";
-    
-    if(!dataBusca) {
-        return alert("Por favor, selecione uma data.");
-    }
-
-    todosContratos.forEach(contrato => {
-        contrato.parcelas.forEach((p, index) => {
-            if (p.prazo === dataBusca) {
-                const sit = p.paga ? "Pago" : (p.prazo < getTodayStringISO() ? "Atrasado" : "Aberto");
-                tbody.innerHTML += `
-                    <tr>
-                        <td><input type="checkbox" class="chk-pesquisa-data" data-id="${contrato.id}" data-idx="${index}" ${p.paga ? 'checked' : ''}></td>
-                        <td>${contrato.cliente}</td>
-                        <td>${contrato.titulo || '-'}</td>
-                        <td>R$ ${contrato.valorTotal.toFixed(2)}</td>
-                        <td>${p.numero} de ${contrato.numeroParcelas}</td>
-                        <td>${formatPtBr(new Date(p.prazo + "T12:00:00Z"))}</td>
-                        <td>${sit}</td>
-                    </tr>
-                `;
-            }
-        });
-    });
-};
-
-document.getElementById('btn-salvar-pesquisa-data').onclick = async () => {
-    const checks = document.querySelectorAll('.chk-pesquisa-data');
-    let alteracoes = {};
-    checks.forEach(chk => {
-        alteracoes[`contratos/${chk.dataset.id}/parcelas/${chk.dataset.idx}/paga`] = chk.checked;
-    });
-    await update(ref(database), alteracoes);
-    alert("Alterações salvas!");
-    document.getElementById('btn-pesquisar-data').click();
-};
 
 // --- BASE DE DADOS E EDIÇÃO / EXCLUSÃO DE CONTRATOS ---
 function renderBaseDados() {
@@ -584,7 +732,7 @@ function renderBaseDados() {
                     <td>${c.cliente}</td>
                     <td>${c.titulo || '-'}</td>
                     <td>R$ ${c.valorTotal.toFixed(2)}</td>
-                    <td>${c.numeroParcelas}</td>
+                    <td>${c.parcelas.length}</td>
                     <td>${situacaoGeral}</td>
                     <td>
                         <div style="display: flex; gap: 5px;">
@@ -606,41 +754,32 @@ window.abrirEdicao = (id) => {
     document.getElementById('edit-cliente').value = c.cliente;
     document.getElementById('edit-titulo').value = c.titulo || '';
     document.getElementById('edit-entrada').value = c.valorEntrada || 0;
+    document.getElementById('edit-observacao').value = c.observacao || '';
     
-    let html = "";
-    c.parcelas.forEach((p, i) => {
-        html += `
-            <div class="parcela-row">
-                <label>Parc ${p.numero}</label>
-                <input type="date" class="form-control edit-prazo" value="${p.prazo}" required>
-                <label><input type="checkbox" class="edit-pago" ${p.paga ? 'checked' : ''}> Pago</label>
-            </div>
-        `;
-    });
-    document.getElementById('edit-parcelas-container').innerHTML = html;
+    renderParcelasEditModal(c, 'edit-parcelas-container', 'edit');
     document.getElementById('edit-modal').classList.remove('hidden');
 };
 
 document.getElementById('edit-form').onsubmit = async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-id').value;
+    const c = todosContratos.find(x => x.id === id);
+    
     const novoTitulo = document.getElementById('edit-titulo').value;
     const novaEntrada = parseFloat(document.getElementById('edit-entrada').value) || 0;
-    const prazos = document.querySelectorAll('.edit-prazo');
-    const pagos = document.querySelectorAll('.edit-pago');
+    const obs = document.getElementById('edit-observacao').value;
+
+    const novasParcelas = extrairEProcessarParcelas('edit-parcelas-container', 'edit', c);
     
     let atualizacao = {};
     atualizacao[`contratos/${id}/titulo`] = novoTitulo;
     atualizacao[`contratos/${id}/valorEntrada`] = novaEntrada;
-
-    prazos.forEach((p, i) => {
-        atualizacao[`contratos/${id}/parcelas/${i}/prazo`] = prazos[i].value;
-        atualizacao[`contratos/${id}/parcelas/${i}/paga`] = pagos[i].checked;
-    });
+    atualizacao[`contratos/${id}/observacao`] = obs;
+    atualizacao[`contratos/${id}/parcelas`] = novasParcelas;
 
     await update(ref(database), atualizacao);
     document.getElementById('edit-modal').classList.add('hidden');
-    alert("Salvo!");
+    alert("Contrato salvo e atualizado!");
 };
 
 window.abrirExclusao = (id) => {
@@ -651,7 +790,6 @@ window.abrirExclusao = (id) => {
 document.getElementById('btn-confirmar-exclusao').onclick = async () => {
     const id = document.getElementById('delete-id').value;
     if (!id) return;
-
     try {
         await remove(ref(database, `contratos/${id}`));
         alert("Entrada excluída com sucesso da base de dados!");
@@ -662,6 +800,56 @@ document.getElementById('btn-confirmar-exclusao').onclick = async () => {
     }
 };
 
+// --- PESQUISA POR DATA (MARCAÇÃO RÁPIDA DE PAGAMENTO INTEGRAL) ---
+document.getElementById('btn-pesquisar-data').onclick = () => {
+    const dataBusca = document.getElementById('pesquisa-data-input').value;
+    const tbody = document.querySelector('#tabela-pesquisa-data tbody');
+    tbody.innerHTML = "";
+    
+    if(!dataBusca) {
+        return alert("Por favor, selecione uma data.");
+    }
+
+    todosContratos.forEach(contrato => {
+        contrato.parcelas.forEach((p, index) => {
+            if (p.prazo === dataBusca) {
+                const sit = getStatusSituacao(p);
+                tbody.innerHTML += `
+                    <tr>
+                        <td><input type="checkbox" class="chk-pesquisa-data" data-id="${contrato.id}" data-idx="${index}" ${p.paga ? 'checked' : ''}></td>
+                        <td>${contrato.cliente}</td>
+                        <td>${contrato.titulo || '-'}</td>
+                        <td>R$ ${contrato.valorTotal.toFixed(2)}</td>
+                        <td>${p.numero}</td>
+                        <td>${formatPtBr(new Date(p.prazo + "T12:00:00Z"))}</td>
+                        <td>${sit}</td>
+                    </tr>
+                `;
+            }
+        });
+    });
+};
+
+document.getElementById('btn-salvar-pesquisa-data').onclick = async () => {
+    const checks = document.querySelectorAll('.chk-pesquisa-data');
+    let alteracoes = {};
+    checks.forEach(chk => {
+        let cid = chk.dataset.id;
+        let idx = chk.dataset.idx;
+        let contrato = todosContratos.find(c => c.id === cid);
+        let parcela = contrato.parcelas[idx];
+        
+        alteracoes[`contratos/${cid}/parcelas/${idx}/paga`] = chk.checked;
+        if(chk.checked && (!parcela.valorPago || parcela.valorPago === 0)) {
+            alteracoes[`contratos/${cid}/parcelas/${idx}/valorPago`] = parcela.valorEsperado; // pagamento integral rapido
+        }
+    });
+    await update(ref(database), alteracoes);
+    alert("Alterações salvas!");
+    document.getElementById('btn-pesquisar-data').click();
+};
+
+
 // --- ESTATÍSTICA E DASHBOARD ---
 function calcularEstatisticas() {
     let pagas = 0, abertos = 0, atrasados = 0;
@@ -671,7 +859,7 @@ function calcularEstatisticas() {
     todosContratos.forEach(c => {
         let contratoTemAberto = false;
         c.parcelas.forEach(p => {
-            if (p.paga) pagas++;
+            if (p.paga) pagas++; // Conta também pagas parcialmente como pagas nas estatisticas globais de quantidade
             else {
                 if (p.prazo < hojeISO) atrasados++;
                 else contratoTemAberto = true;
@@ -690,7 +878,48 @@ function calcularEstatisticas() {
     document.getElementById('est-atrasados').textContent = atrasados;
 }
 
+// --- CÁLCULO DE FATURAMENTO MENSAL ---
+function calcularFaturamentoMensal() {
+    const mesAno = document.getElementById('faturamento-mes-select').value;
+    if (!mesAno) return;
+
+    let totalPago = 0;
+    let qtdPagas = 0;
+    let totalPendente = 0;
+    let qtdPendentes = 0;
+
+    todosContratos.forEach(c => {
+        c.parcelas.forEach(p => {
+            if (p.prazo && p.prazo.startsWith(mesAno)) {
+                if (p.paga) {
+                    totalPago += (p.valorPago || 0);
+                    qtdPagas++;
+                    // Se foi parcial, a diferença pendente deve ser contabilizada para o futuro? 
+                    // Como foi diluida, aparecerá no mes de cobrança referente ao repasse.
+                } else {
+                    totalPendente += (p.valorEsperado || 0);
+                    qtdPendentes++;
+                }
+            }
+        });
+    });
+
+    document.getElementById('fat-pago-valor').textContent = `R$ ${totalPago.toFixed(2)}`;
+    document.getElementById('fat-pago-qtd').textContent = `${qtdPagas} parcela(s) com pgto.`;
+
+    document.getElementById('fat-pendente-valor').textContent = `R$ ${totalPendente.toFixed(2)}`;
+    document.getElementById('fat-pendente-qtd').textContent = `${qtdPendentes} parcela(s) não pagas`;
+}
+
+document.getElementById('faturamento-mes-select').addEventListener('change', calcularFaturamentoMensal);
+
 function renderEstatistica() {
+    const mesSelect = document.getElementById('faturamento-mes-select');
+    if (!mesSelect.value) {
+        mesSelect.value = getCurrentMonthISO();
+    }
+    calcularFaturamentoMensal();
+
     const tbody = document.querySelector('#tabela-atrasos tbody');
     let listaAtrasos = [];
     const hoje = getBrasiliaDate();
@@ -701,6 +930,7 @@ function renderEstatistica() {
             const dataPrazo = new Date(p.prazo + "T12:00:00Z");
             dataPrazo.setHours(0,0,0,0);
             
+            // Só é atrasado se não está paga de forma alguma (Paga ou Parc. Paga não contam como atraso)
             if (!p.paga && dataPrazo < hoje) {
                 const diasAtraso = Math.floor((hoje - dataPrazo) / (1000 * 60 * 60 * 24));
                 listaAtrasos.push({
@@ -710,7 +940,7 @@ function renderEstatistica() {
                     titulo: c.titulo,
                     total: c.valorTotal,
                     num: p.numero,
-                    valor: c.valorParcela,
+                    valorEsperado: p.valorEsperado,
                     entrada: c.valorEntrada || 0,
                     prazoStr: formatPtBr(dataPrazo),
                     dias: diasAtraso
@@ -732,7 +962,7 @@ function renderEstatistica() {
             <td>${item.titulo || '-'}</td>
             <td>R$ ${item.total.toFixed(2)}</td>
             <td>${item.num}</td>
-            <td>R$ ${item.valor.toFixed(2)}</td>
+            <td>R$ ${item.valorEsperado.toFixed(2)}</td>
             <td>R$ ${item.entrada.toFixed(2)}</td>
             <td>${item.prazoStr}</td>
             <td class="text-error"><strong>${item.dias}</strong></td>
@@ -755,7 +985,12 @@ document.getElementById('btn-salvar-atrasos').onclick = async () => {
 
     checkboxes.forEach(chk => {
         if (chk.checked) {
-            alteracoes[`contratos/${chk.dataset.id}/parcelas/${chk.dataset.idx}/paga`] = true;
+            let cid = chk.dataset.id;
+            let idx = chk.dataset.idx;
+            let contrato = todosContratos.find(c => c.id === cid);
+            
+            alteracoes[`contratos/${cid}/parcelas/${idx}/paga`] = true;
+            alteracoes[`contratos/${cid}/parcelas/${idx}/valorPago`] = contrato.parcelas[idx].valorEsperado; // marca rápida paga integral
             marcados++;
         }
     });
