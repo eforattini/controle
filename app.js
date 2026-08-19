@@ -92,22 +92,38 @@ function somarMesesData(dataISO, mesesAdicionar) {
     return `${y}-${m}-${day}`;
 }
 
-// --- NAVEGAÇÃO ---
+// --- NAVEGAÇÃO E CONTROLE DE MODAL ---
 document.querySelectorAll('.btn-voltar').forEach(btn => {
     btn.addEventListener('click', () => showScreen('dashboard-screen'));
 });
+
+// Fecha modals genéricos e tira a classe do body p/ impressões seguras
 document.querySelectorAll('.btn-fechar-modal').forEach(btn => {
-    btn.addEventListener('click', (e) => e.target.closest('.modal').classList.add('hidden'));
+    btn.addEventListener('click', (e) => {
+        e.target.closest('.modal').classList.add('hidden');
+        document.body.classList.remove('modal-is-open');
+    });
 });
 
-// Acessível do HTML da Sidebar
 window.showScreen = function(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    
+    const sidebar = document.getElementById('app-sidebar');
+    if (sidebar) {
+        if (id === 'login-screen') {
+            sidebar.style.display = 'none';
+            document.body.classList.remove('sidebar-is-open');
+        } else {
+            sidebar.style.display = 'flex';
+            if (localStorage.getItem('sidebarState') === 'open') {
+                abrirSidebar();
+            }
+        }
+    }
     if(id === 'dashboard-screen') calcularEstatisticas();
 };
 
-// Botões Dashboard
 document.getElementById('nav-cad-cliente').onclick = () => showScreen('cadastro-cliente-screen');
 document.getElementById('nav-catalogo').onclick = () => { renderCatalogo(); showScreen('catalogo-screen'); };
 document.getElementById('nav-cadastro').onclick = () => { resetCadastroContratoForm(); showScreen('cadastro-screen'); };
@@ -129,7 +145,6 @@ document.getElementById('btn-dashboard-atrasados').onclick = () => {
     showScreen('estatistica-screen');
 };
 
-// NOVO LÓGICA VENCEM HOJE (DASHBOARD CLICK)
 document.getElementById('btn-dashboard-hoje').onclick = () => {
     const tbody = document.querySelector('#tabela-vencem-hoje tbody');
     tbody.innerHTML = "";
@@ -160,7 +175,6 @@ document.getElementById('btn-dashboard-hoje').onclick = () => {
     document.getElementById('vencem-hoje-modal').classList.remove('hidden');
 };
 
-// Logout da sidebar e do painel
 const handleLogout = () => {
     auth.signOut();
     currentUser = null;
@@ -692,6 +706,77 @@ function criarNovaParcela(memParcelas, diff) {
     };
 }
 
+// --- VISUALIZAÇÃO GERAL DO CONTRATO (NOVO) ---
+window.abrirVisualizacaoContrato = (id, contextoEdicao) => {
+    const c = todosContratos.find(x => x.id === id);
+    if (!c) return;
+
+    document.getElementById('view-cli-nome').textContent = c.cliente;
+    document.getElementById('view-cli-titulo').textContent = c.titulo || 'Sem Título';
+    document.getElementById('view-data-registro').textContent = `${c.dataCriacao} às ${c.horaCriacao}`;
+    document.getElementById('view-val-total').textContent = `R$ ${c.valorTotal.toFixed(2)}`;
+    document.getElementById('view-val-entrada').textContent = `R$ ${(c.valorEntrada || 0).toFixed(2)}`;
+    
+    let obsText = c.observacao || 'Nenhuma observação registrada.';
+    document.getElementById('view-observacao').textContent = obsText;
+
+    let pagas = 0, restantes = 0, valorPago = 0;
+    c.parcelas.forEach(p => {
+        let pago = p.valorPago !== undefined ? p.valorPago : (p.paga ? p.valorEsperado : 0);
+        if (p.paga || pago > 0) {
+            pagas++;
+            valorPago += pago;
+        } else {
+            restantes++;
+        }
+    });
+    
+    let totalGeralPago = valorPago + (c.valorEntrada || 0);
+    let emAberto = Math.max(0, c.valorTotal - totalGeralPago);
+
+    document.getElementById('view-count-pagas').textContent = pagas;
+    document.getElementById('view-count-restantes').textContent = restantes;
+    document.getElementById('view-sum-pago').textContent = `R$ ${valorPago.toFixed(2)}`;
+    document.getElementById('view-sum-total').textContent = `R$ ${totalGeralPago.toFixed(2)}`;
+    document.getElementById('view-sum-aberto').textContent = `R$ ${emAberto.toFixed(2)}`;
+
+    let tbody = document.getElementById('view-parcelas-tbody');
+    tbody.innerHTML = '';
+    
+    c.parcelas.forEach(p => {
+        let pago = p.valorPago !== undefined ? p.valorPago : (p.paga ? p.valorEsperado : 0);
+        let sit = getStatusSituacao(p);
+        let sitClass = p.paga ? (p.valorPago < p.valorEsperado ? 'text-warning' : 'text-success') : (sit === 'Atrasado' ? 'text-error' : 'text-primary');
+        
+        tbody.innerHTML += `
+            <tr>
+                <td>${p.numero}</td>
+                <td>${formatPtBr(new Date(p.prazo + "T12:00:00Z"))}</td>
+                <td>R$ ${p.valorEsperado.toFixed(2)}</td>
+                <td class="${pago > 0 ? 'text-success' : ''}">R$ ${pago.toFixed(2)}</td>
+                <td class="${sitClass}" style="font-weight:bold;">${sit}</td>
+            </tr>
+        `;
+    });
+
+    // Configura botão de Editar dinâmico para abrir conforme a tela origem
+    const btnEditarView = document.getElementById('btn-editar-view');
+    btnEditarView.onclick = () => {
+        document.getElementById('view-contrato-modal').classList.add('hidden');
+        document.body.classList.remove('modal-is-open');
+        
+        if (contextoEdicao === 'pesquisa') {
+            abrirModalParcelas(id);
+        } else {
+            abrirEdicao(id);
+        }
+    };
+
+    document.getElementById('view-contrato-modal').classList.remove('hidden');
+    // Adiciona classe ao body para otimizar impressão excluindo o resto
+    document.body.classList.add('modal-is-open');
+};
+
 // --- PESQUISA CLIENTES (CONTRATOS) ---
 document.getElementById('btn-pesquisar-cliente').onclick = () => {
     const nome = document.getElementById('pesquisa-cliente-nome').value.toUpperCase();
@@ -721,8 +806,13 @@ document.getElementById('btn-pesquisar-cliente').onclick = () => {
         let situacaoContrato = atrasado ? "Atrasado" : (emAberto ? "Aberto" : "Pago");
 
         tbody.innerHTML += `
-            <tr class="clickable-row" onclick="abrirModalParcelas('${contrato.id}')">
-                <td><button class="btn btn--sm btn--primary" onclick="event.stopPropagation(); abrirModalParcelas('${contrato.id}')" title="Ver Parcelas">+</button></td>
+            <tr class="clickable-row" onclick="abrirVisualizacaoContrato('${contrato.id}', 'pesquisa')">
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn btn--sm btn--info no-print" onclick="event.stopPropagation(); abrirVisualizacaoContrato('${contrato.id}', 'pesquisa')" title="Ver Relatório">👁️ Detalhes</button>
+                        <button class="btn btn--sm btn--warning no-print" onclick="event.stopPropagation(); abrirModalParcelas('${contrato.id}')" title="Editar">✏️ Editar</button>
+                    </div>
+                </td>
                 <td>${contrato.cliente}</td>
                 <td>${contrato.titulo || '-'}</td>
                 <td>R$ ${contrato.valorTotal.toFixed(2)}</td>
@@ -788,7 +878,7 @@ function renderBaseDados() {
 
         if (passaFiltroSituacao && passaFiltroData) {
             tbody.innerHTML += `
-                <tr class="clickable-row" onclick="abrirEdicao('${c.id}')">
+                <tr class="clickable-row" onclick="abrirVisualizacaoContrato('${c.id}', 'base')">
                     <td>${c.dataCriacao} ${c.horaCriacao}</td>
                     <td>${c.cliente}</td>
                     <td>${c.titulo || '-'}</td>
@@ -797,8 +887,9 @@ function renderBaseDados() {
                     <td>${situacaoGeral}</td>
                     <td>
                         <div style="display: flex; gap: 5px;">
-                            <button class="btn btn--sm btn--primary" onclick="event.stopPropagation(); abrirEdicao('${c.id}')">Editar</button>
-                            <button class="btn btn--sm btn--danger" style="background: var(--color-error); color: white;" onclick="event.stopPropagation(); abrirExclusao('${c.id}')">Excluir</button>
+                            <button class="btn btn--sm btn--info no-print" onclick="event.stopPropagation(); abrirVisualizacaoContrato('${c.id}', 'base')">👁️ Ver</button>
+                            <button class="btn btn--sm btn--warning no-print" onclick="event.stopPropagation(); abrirEdicao('${c.id}')">✏️ Editar</button>
+                            <button class="btn btn--sm btn--danger no-print" style="background: var(--color-error); color: white;" onclick="event.stopPropagation(); abrirExclusao('${c.id}')">Excluir</button>
                         </div>
                     </td>
                 </tr>
@@ -1167,7 +1258,6 @@ document.getElementById('btn-gerar-relatorio').onclick = () => {
     const formatCurrency = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
     const formatDateBr = (isoStr) => formatPtBr(new Date(isoStr + "T12:00:00Z"));
 
-    // O "un." foi removido das TDs
     const relatorioHtml = `
         <div style="text-align: center; margin-bottom: 30px;">
             <h1 style="font-size: 26px; margin-bottom: 10px; color: #111;">Relatório Gerencial de Contratos</h1>

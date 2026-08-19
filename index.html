@@ -7,23 +7,23 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Menu Lateral (Sidebar) -->
+<!-- Menu Lateral (Sidebar) -->
     <nav id="app-sidebar" class="app-sidebar hidden no-print">
         <div class="sidebar-header">
             <h3>Menu Rápido</h3>
             <button class="btn-close-sidebar" onclick="fecharSidebar()">×</button>
         </div>
         <ul class="sidebar-menu">
-            <li><button onclick="fecharSidebar(); showScreen('dashboard-screen')" class="btn-menu">🏠 Dashboard Principal</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-cad-cliente').click()" class="btn-menu">👤+ Cadastrar Cliente</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-catalogo').click()" class="btn-menu">📋 Catálogo Clientes</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-cadastro').click()" class="btn-menu">📝 Cadastrar Contrato</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-basedados').click()" class="btn-menu">🗄️ Base Contratos</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-clientes').click()" class="btn-menu">🔍 Pesquisa por Cliente</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-pesquisa-data').click()" class="btn-menu">📅 Pesquisa por Data</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-estatistica').click()" class="btn-menu">📊 Estatística</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-relatorio').click()" class="btn-menu">📄 Relatórios</button></li>
-            <li><button onclick="fecharSidebar(); document.getElementById('nav-perfil').click()" class="btn-menu">⚙️ Perfil</button></li>
+            <li><button onclick="handleMenuClick(() => showScreen('dashboard-screen'))" class="btn-menu">🏠 Dashboard Principal</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-cad-cliente').click())" class="btn-menu">👤+ Cadastrar Cliente</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-catalogo').click())" class="btn-menu">📋 Catálogo Clientes</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-cadastro').click())" class="btn-menu">📝 Cadastrar Contrato</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-basedados').click())" class="btn-menu">🗄️ Base Contratos</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-clientes').click())" class="btn-menu">🔍 Pesquisa por Cliente</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-pesquisa-data').click())" class="btn-menu">📅 Pesquisa por Data</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-estatistica').click())" class="btn-menu">📊 Estatística</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-relatorio').click())" class="btn-menu">📄 Relatórios</button></li>
+            <li><button onclick="handleMenuClick(() => document.getElementById('nav-perfil').click())" class="btn-menu">⚙️ Perfil</button></li>
             <li><button id="logout-sidebar-btn" class="btn-menu text-error" style="font-weight: bold;">🚪 Sair do Sistema</button></li>
         </ul>
     </nav>
@@ -456,7 +456,7 @@
         </div>
     </div>
 
-    <!-- TELA NOVA: Relatórios (Pronta para PDF) -->
+    <!-- Tela Relatórios (Pronta para PDF) -->
     <div id="relatorio-screen" class="screen">
         <div class="screen-header no-print">
             <div class="container">
@@ -495,6 +495,79 @@
         <div class="container" id="printable-report-container" style="display:none; margin-top: 20px;">
             <div id="printable-report" style="background: white; color: black; padding: 40px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
                 <!-- O relatório em si será injetado aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- NOVO MODAL: Visualização de Contrato (Leitura) -->
+    <div id="view-contrato-modal" class="modal hidden">
+        <div class="modal-content modal-content--large print-fullscreen">
+            <div class="modal-header no-print flex justify-between items-center" style="padding-bottom: 15px; border-bottom: 1px solid var(--color-border);">
+                <h3 style="color: var(--color-primary); margin: 0;">Detalhes do Contrato</h3>
+                <button type="button" class="btn btn--outline btn-fechar-modal" style="padding: 2px 8px;">×</button>
+            </div>
+            <div class="modal-body" style="padding-top: 20px;">
+                <!-- Cabeçalho do Relatório Focado no Cliente -->
+                <div class="report-meta mb-16" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <p class="m-0"><strong>Cliente:</strong> <span id="view-cli-nome"></span></p>
+                    <p class="m-0"><strong>Contrato:</strong> <span id="view-cli-titulo"></span></p>
+                    <p class="m-0"><strong>Data do Registro:</strong> <span id="view-data-registro"></span></p>
+                    <p class="m-0"><strong>Valor Total:</strong> <span id="view-val-total" class="text-primary font-weight-bold"></span></p>
+                    <p class="m-0"><strong>Entrada:</strong> <span id="view-val-entrada"></span></p>
+                </div>
+                
+                <!-- Quadro Resumo de Pagamentos -->
+                <div class="contract-summary-box mb-16" style="margin-bottom: 20px;">
+                    <div class="summary-item">
+                        <span class="summary-label">Parcelas Pagas</span>
+                        <span class="summary-value summary-count-pagas text-success" id="view-count-pagas">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Restantes</span>
+                        <span class="summary-value summary-count-restantes text-warning" id="view-count-restantes">0</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Valor Pago (Parcelas)</span>
+                        <span class="summary-value summary-sum-pago text-success" id="view-sum-pago">R$ 0,00</span>
+                    </div>
+                    <div class="summary-item" style="background-color: var(--color-bg-3); padding: 5px; border-radius: 6px;">
+                        <span class="summary-label text-success">Total Pago (+ Entrada)</span>
+                        <span class="summary-value summary-sum-total text-success" id="view-sum-total">R$ 0,00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Em Aberto</span>
+                        <span class="summary-value summary-sum-aberto text-error" id="view-sum-aberto">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <div class="form-group mb-16">
+                    <label class="form-label" style="margin-bottom: 5px;"><strong>Observações:</strong></label>
+                    <p id="view-observacao" style="background: var(--color-bg-1); padding: 10px; border-radius: 6px; min-height: 40px; margin: 0;"></p>
+                </div>
+
+                <h4 class="mb-8" style="color: var(--color-text);">Quadro de Parcelas</h4>
+                <div class="table-container card" style="border: 1px solid var(--color-border); box-shadow: none;">
+                    <table class="data-table">
+                        <thead>
+                            <tr style="background: var(--color-bg-2);">
+                                <th>Nº</th>
+                                <th>Vencimento</th>
+                                <th>Valor Esperado</th>
+                                <th>Valor Pago</th>
+                                <th>Situação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="view-parcelas-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Rodapé com Botões de Ação -->
+            <div class="modal-footer mt-16 no-print flex justify-between items-center" style="width: 100%; border-top: 1px solid var(--color-border); padding-top: 15px;">
+                <button type="button" class="btn btn--outline" onclick="window.print()">🖨️ Imprimir / PDF</button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" id="btn-editar-view" class="btn btn--warning">✏️ Editar Campos</button>
+                    <button type="button" class="btn btn--outline btn-fechar-modal">Fechar</button>
+                </div>
             </div>
         </div>
     </div>
@@ -613,7 +686,7 @@
         </div>
     </div>
 
-    <!-- NOVO MODAL: Lista de Vencimentos do Dia -->
+    <!-- Lista de Vencimentos do Dia -->
     <div id="vencem-hoje-modal" class="modal hidden">
         <div class="modal-content modal-content--large">
             <div class="modal-header"><h3>Processos / Parcelas que Vencem Hoje</h3></div>
@@ -701,10 +774,26 @@
         </div>
     </div>
 
-    <!-- Script Global para abrir/fechar Sidebar (adicionado diretamente para escopo global) -->
+<!-- Script Global para Sidebar -->
     <script>
-        function abrirSidebar() { document.getElementById('app-sidebar').classList.add('open'); }
-        function fecharSidebar() { document.getElementById('app-sidebar').classList.remove('open'); }
+        function abrirSidebar() {
+            document.getElementById('app-sidebar').classList.add('open');
+            document.body.classList.add('sidebar-is-open');
+            localStorage.setItem('sidebarState', 'open'); 
+        }
+        
+        function fecharSidebar() {
+            document.getElementById('app-sidebar').classList.remove('open');
+            document.body.classList.remove('sidebar-is-open');
+            localStorage.setItem('sidebarState', 'closed'); 
+        }
+
+        function handleMenuClick(acao) {
+            if (window.innerWidth <= 1024) {
+                fecharSidebar();
+            }
+            acao(); 
+        }
     </script>
     <script type="module" src="app.js"></script>
 </body>

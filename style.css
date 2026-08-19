@@ -3219,3 +3219,88 @@ textarea.form-control {
         display: none !important;
     }
 }
+/* ========================================= */
+/* COMPORTAMENTO PERSISTENTE DA SIDEBAR      */
+/* ========================================= */
+
+/* Suavidade ao empurrar o conteúdo */
+.screen {
+    transition: padding-left 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Quando o menu está aberto, empurra o conteúdo em 280px (largura do menu) */
+body.sidebar-is-open .screen {
+    padding-left: 280px;
+}
+
+/* Em telas de celular/tablet, remove o empurrão (volta a se comportar como uma aba por cima da tela) */
+@media (max-width: 1024px) {
+    body.sidebar-is-open .screen {
+        padding-left: 0;
+    }
+}
+.btn--warning {
+    background: var(--color-warning);
+    color: var(--color-white);
+    border: none;
+}
+
+.btn--warning:hover {
+    background: var(--color-orange-400);
+}
+
+/* ========================================= */
+/* ESTILOS DE IMPRESSÃO (MODAL VIEW/RELATÓRIO) */
+/* ========================================= */
+
+@media print {
+    /* Esconder fundo e toda a interface quando um modal está aberto para impressão (Ex: View Modal) */
+    body.modal-is-open .screen,
+    body.modal-is-open .app-sidebar,
+    body.modal-is-open .dashboard-header,
+    body.modal-is-open .no-print {
+        display: none !important;
+    }
+
+    body.modal-is-open .modal {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        background: white !important;
+        display: block !important;
+        padding: 0 !important;
+    }
+
+    body.modal-is-open .modal-content {
+        box-shadow: none !important;
+        border: none !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 10px !important;
+    }
+
+    body.modal-is-open .modal-body {
+        padding: 0 !important;
+    }
+
+    body.modal-is-open .table-container {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    body.modal-is-open table.data-table th, 
+    body.modal-is-open table.data-table td {
+        border: 1px solid #ccc !important;
+        color: #000 !important;
+    }
+    
+    body.modal-is-open .text-success, 
+    body.modal-is-open .text-warning, 
+    body.modal-is-open .text-error,
+    body.modal-is-open .text-primary {
+        color: #000 !important; 
+    }
+}
