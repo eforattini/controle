@@ -100,11 +100,12 @@ document.querySelectorAll('.btn-fechar-modal').forEach(btn => {
     btn.addEventListener('click', (e) => e.target.closest('.modal').classList.add('hidden'));
 });
 
-function showScreen(id) {
+// Acessível do HTML da Sidebar
+window.showScreen = function(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     if(id === 'dashboard-screen') calcularEstatisticas();
-}
+};
 
 // Botões Dashboard
 document.getElementById('nav-cad-cliente').onclick = () => showScreen('cadastro-cliente-screen');
@@ -116,9 +117,59 @@ document.getElementById('nav-basedados').onclick = () => { renderBaseDados(); sh
 document.getElementById('nav-estatistica').onclick = () => { renderEstatistica(); showScreen('estatistica-screen'); };
 document.getElementById('nav-perfil').onclick = () => document.getElementById('profile-modal').classList.remove('hidden');
 
+document.getElementById('nav-relatorio').onclick = () => {
+    atualizarOpcoesRelatorio();
+    document.getElementById('printable-report-container').style.display = 'none';
+    document.getElementById('btn-imprimir-relatorio').classList.add('hidden');
+    showScreen('relatorio-screen');
+};
+
 document.getElementById('btn-dashboard-atrasados').onclick = () => {
     renderEstatistica();
     showScreen('estatistica-screen');
+};
+
+// NOVO LÓGICA VENCEM HOJE (DASHBOARD CLICK)
+document.getElementById('btn-dashboard-hoje').onclick = () => {
+    const tbody = document.querySelector('#tabela-vencem-hoje tbody');
+    tbody.innerHTML = "";
+    let hojeISO = getTodayStringISO();
+    let temHoje = false;
+
+    todosContratos.forEach(c => {
+        c.parcelas.forEach(p => {
+            if (p.prazo === hojeISO && !p.paga) {
+                temHoje = true;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${c.cliente}</td>
+                        <td>${c.titulo || '-'}</td>
+                        <td>R$ ${p.valorEsperado.toFixed(2)}</td>
+                        <td>${p.numero}</td>
+                        <td class="text-warning">Vence Hoje</td>
+                    </tr>
+                `;
+            }
+        });
+    });
+
+    if (!temHoje) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center">Nenhuma parcela pendente para hoje.</td></tr>`;
+    }
+
+    document.getElementById('vencem-hoje-modal').classList.remove('hidden');
+};
+
+// Logout da sidebar e do painel
+const handleLogout = () => {
+    auth.signOut();
+    currentUser = null;
+    showScreen('login-screen');
+};
+document.getElementById('logout-btn').onclick = handleLogout;
+document.getElementById('logout-sidebar-btn').onclick = () => {
+    if(typeof fecharSidebar === 'function') fecharSidebar();
+    handleLogout();
 };
 
 // --- AUTENTICAÇÃO ---
@@ -143,12 +194,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     }
 });
 
-document.getElementById('logout-btn').onclick = () => {
-    auth.signOut();
-    currentUser = null;
-    showScreen('login-screen');
-};
-
 document.getElementById('password-form').onsubmit = async (e) => {
     e.preventDefault();
     try {
@@ -167,7 +212,6 @@ function carregarDados() {
         if (snapshot.exists()) {
             const data = snapshot.val();
             for (let key in data) {
-                // Migração de dados de parcelas antigas para o novo formato
                 let contrato = data[key];
                 if(contrato.parcelas) {
                     contrato.parcelas = contrato.parcelas.map(p => {
@@ -421,8 +465,8 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
         valorTotal: parseFloat(document.getElementById('cad-valor').value),
         valorEntrada: parseFloat(document.getElementById('cad-entrada').value) || 0,
         numeroParcelas: parseInt(document.getElementById('cad-parcelas').value),
-        valorParcela: valorParcelaBase, // mantido para compatibilidade base
-        observacao: "", // novo campo
+        valorParcela: valorParcelaBase,
+        observacao: "",
         dataCriacao: formatPtBr(now),
         horaCriacao: now.toLocaleTimeString('pt-BR'),
         timestamp: now.getTime(),
@@ -435,7 +479,7 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
     showScreen('dashboard-screen');
 });
 
-// --- LÓGICA COMPARTILHADA DE RENDERIZAÇÃO DE PARCELAS PARA EDIÇÃO ---
+// --- LÓGICA DE RENDERIZAÇÃO DE PARCELAS PARA EDIÇÃO ---
 function getStatusSituacao(p) {
     if(p.paga) {
         return (p.valorPago < p.valorEsperado) ? "Paga Parc." : "Pago";
@@ -496,7 +540,6 @@ function renderParcelasEditModal(contrato, containerId, prefix) {
     });
     container.innerHTML = html;
 
-    // Adicionando eventos dinâmicos para resumo e verificação de diferença
     const rows = container.querySelectorAll('.parcela-row');
     rows.forEach(row => {
         const chk = row.querySelector(`.${prefix}-pago-chk`);
@@ -508,7 +551,6 @@ function renderParcelasEditModal(contrato, containerId, prefix) {
         const checkDiff = () => {
             let pago = parseFloat(inputPago.value) || 0;
             let esp = parseFloat(inputEsp.value) || 0;
-            // Se já não foi aplicada e é pago parcial
             if(chk.checked && pago > 0 && pago < esp && !diffAplicada) {
                 diffCont.classList.remove('hidden');
             } else {
@@ -530,32 +572,51 @@ function renderParcelasEditModal(contrato, containerId, prefix) {
             checkDiff();
         });
         
-        // Dispara initial check
         checkDiff();
     });
 }
 
 function atualizarResumoModal(modalBody, valorTotalContrato, prefix) {
     const inputsPago = modalBody.querySelectorAll(`.${prefix}-pago-valor`);
-    let totalPago = 0;
+    let totalPagoParcelas = 0;
+    let countPagas = 0;
+    let countRestantes = 0;
+
     inputsPago.forEach(inp => {
         let chk = inp.closest('.parcela-row').querySelector(`.${prefix}-pago-chk`);
-        if(chk.checked) totalPago += (parseFloat(inp.value) || 0);
+        let valor = parseFloat(inp.value) || 0;
+        
+        if (chk.checked || valor > 0) {
+            totalPagoParcelas += valor;
+            countPagas++;
+        } else {
+            countRestantes++;
+        }
     });
     
-    let devido = Math.max(0, valorTotalContrato - totalPago);
+    let inputEntrada = document.getElementById(`${prefix}-entrada`);
+    let valorEntrada = inputEntrada ? (parseFloat(inputEntrada.value) || 0) : 0;
+    
+    let totalGeralPago = totalPagoParcelas + valorEntrada;
+    let devido = Math.max(0, valorTotalContrato - totalGeralPago);
 
-    modalBody.querySelector('.resumo-original').textContent = valorTotalContrato.toFixed(2);
-    modalBody.querySelector('.resumo-pago').textContent = totalPago.toFixed(2);
-    modalBody.querySelector('.resumo-devido').textContent = devido.toFixed(2);
+    const elPagas = modalBody.querySelector('.summary-count-pagas');
+    const elRestantes = modalBody.querySelector('.summary-count-restantes');
+    const elPago = modalBody.querySelector('.summary-sum-pago');
+    const elTotal = modalBody.querySelector('.summary-sum-total');
+    const elAberto = modalBody.querySelector('.summary-sum-aberto');
+
+    if (elPagas) elPagas.textContent = countPagas;
+    if (elRestantes) elRestantes.textContent = countRestantes;
+    if (elPago) elPago.textContent = `R$ ${totalPagoParcelas.toFixed(2)}`;
+    if (elTotal) elTotal.textContent = `R$ ${totalGeralPago.toFixed(2)}`;
+    if (elAberto) elAberto.textContent = `R$ ${devido.toFixed(2)}`;
 }
 
-// Lógica de Processamento de Diferenças ao Salvar
 function extrairEProcessarParcelas(containerId, prefix, contrato) {
     const rows = document.getElementById(containerId).querySelectorAll('.parcela-row');
     let memParcelas = [];
 
-    // Extrair do DOM
     rows.forEach((row, i) => {
         let oldP = contrato.parcelas[i];
         let numStr = oldP ? oldP.numero : (i + 1);
@@ -572,14 +633,12 @@ function extrairEProcessarParcelas(containerId, prefix, contrato) {
         });
     });
 
-    // Processar propagações
     for(let i=0; i<memParcelas.length; i++) {
         let p = memParcelas[i];
         
-        // Verifica se é um pagamento parcial e a diferença ainda não foi propagada
         if(p.paga && p.valorPago > 0 && p.valorPago < p.valorEsperado && !p.diffAplicada) {
             let diff = p.valorEsperado - p.valorPago;
-            p.diffAplicada = true; // Marca que este desfalque foi repassado adiante
+            p.diffAplicada = true; 
 
             if(p.acaoDiff === 'proxima') {
                 if(i + 1 < memParcelas.length) {
@@ -611,7 +670,6 @@ function extrairEProcessarParcelas(containerId, prefix, contrato) {
         }
     }
 
-    // Limpar propriedades temporárias da interface
     memParcelas.forEach(p => delete p.acaoDiff);
     return memParcelas;
 }
@@ -620,7 +678,6 @@ function criarNovaParcela(memParcelas, diff) {
     let ultimaData = memParcelas[memParcelas.length-1].prazo;
     let novaData = somarMesesData(ultimaData, 1);
     
-    // Calcula o próximo número
     let ultimoNum = memParcelas[memParcelas.length-1].numero;
     let proxNum = typeof ultimoNum === 'number' ? (ultimoNum + 1) : (memParcelas.length + 1);
 
@@ -664,8 +721,8 @@ document.getElementById('btn-pesquisar-cliente').onclick = () => {
         let situacaoContrato = atrasado ? "Atrasado" : (emAberto ? "Aberto" : "Pago");
 
         tbody.innerHTML += `
-            <tr>
-                <td><button class="btn btn--sm btn--primary" onclick="abrirModalParcelas('${contrato.id}')" title="Ver Parcelas">+</button></td>
+            <tr class="clickable-row" onclick="abrirModalParcelas('${contrato.id}')">
+                <td><button class="btn btn--sm btn--primary" onclick="event.stopPropagation(); abrirModalParcelas('${contrato.id}')" title="Ver Parcelas">+</button></td>
                 <td>${contrato.cliente}</td>
                 <td>${contrato.titulo || '-'}</td>
                 <td>R$ ${contrato.valorTotal.toFixed(2)}</td>
@@ -682,7 +739,11 @@ window.abrirModalParcelas = (contratoId) => {
     if (!contrato) return;
 
     document.getElementById('modal-contrato-id').value = contrato.id;
-    document.getElementById('modal-entrada').value = contrato.valorEntrada || 0;
+    
+    let inputEntrada = document.getElementById('modal-entrada');
+    inputEntrada.value = contrato.valorEntrada || 0;
+    inputEntrada.oninput = () => atualizarResumoModal(document.querySelector('#parcelas-modal .modal-body'), contrato.valorTotal, 'modal');
+    
     document.getElementById('modal-observacao').value = contrato.observacao || '';
     document.getElementById('modal-parcelas-titulo').textContent = `Parcelas do Contrato: ${contrato.titulo || 'Sem Título'} (${contrato.cliente})`;
 
@@ -727,7 +788,7 @@ function renderBaseDados() {
 
         if (passaFiltroSituacao && passaFiltroData) {
             tbody.innerHTML += `
-                <tr>
+                <tr class="clickable-row" onclick="abrirEdicao('${c.id}')">
                     <td>${c.dataCriacao} ${c.horaCriacao}</td>
                     <td>${c.cliente}</td>
                     <td>${c.titulo || '-'}</td>
@@ -736,8 +797,8 @@ function renderBaseDados() {
                     <td>${situacaoGeral}</td>
                     <td>
                         <div style="display: flex; gap: 5px;">
-                            <button class="btn btn--sm btn--primary" onclick="abrirEdicao('${c.id}')">Editar</button>
-                            <button class="btn btn--sm btn--danger" style="background: var(--color-error); color: white;" onclick="abrirExclusao('${c.id}')">Excluir</button>
+                            <button class="btn btn--sm btn--primary" onclick="event.stopPropagation(); abrirEdicao('${c.id}')">Editar</button>
+                            <button class="btn btn--sm btn--danger" style="background: var(--color-error); color: white;" onclick="event.stopPropagation(); abrirExclusao('${c.id}')">Excluir</button>
                         </div>
                     </td>
                 </tr>
@@ -753,7 +814,11 @@ window.abrirEdicao = (id) => {
     document.getElementById('edit-id').value = c.id;
     document.getElementById('edit-cliente').value = c.cliente;
     document.getElementById('edit-titulo').value = c.titulo || '';
-    document.getElementById('edit-entrada').value = c.valorEntrada || 0;
+    
+    let inputEntrada = document.getElementById('edit-entrada');
+    inputEntrada.value = c.valorEntrada || 0;
+    inputEntrada.oninput = () => atualizarResumoModal(document.querySelector('#edit-modal .modal-body'), c.valorTotal, 'edit');
+    
     document.getElementById('edit-observacao').value = c.observacao || '';
     
     renderParcelasEditModal(c, 'edit-parcelas-container', 'edit');
@@ -800,19 +865,20 @@ document.getElementById('btn-confirmar-exclusao').onclick = async () => {
     }
 };
 
-// --- PESQUISA POR DATA (MARCAÇÃO RÁPIDA DE PAGAMENTO INTEGRAL) ---
+// --- PESQUISA POR DATA (NOVO: POR PERÍODO) ---
 document.getElementById('btn-pesquisar-data').onclick = () => {
-    const dataBusca = document.getElementById('pesquisa-data-input').value;
+    const dataInicio = document.getElementById('pesquisa-data-inicio').value;
+    const dataFim = document.getElementById('pesquisa-data-fim').value;
     const tbody = document.querySelector('#tabela-pesquisa-data tbody');
     tbody.innerHTML = "";
     
-    if(!dataBusca) {
-        return alert("Por favor, selecione uma data.");
+    if(!dataInicio || !dataFim) {
+        return alert("Por favor, selecione as datas de início e fim do período.");
     }
 
     todosContratos.forEach(contrato => {
         contrato.parcelas.forEach((p, index) => {
-            if (p.prazo === dataBusca) {
+            if (p.prazo >= dataInicio && p.prazo <= dataFim) {
                 const sit = getStatusSituacao(p);
                 tbody.innerHTML += `
                     <tr>
@@ -841,7 +907,7 @@ document.getElementById('btn-salvar-pesquisa-data').onclick = async () => {
         
         alteracoes[`contratos/${cid}/parcelas/${idx}/paga`] = chk.checked;
         if(chk.checked && (!parcela.valorPago || parcela.valorPago === 0)) {
-            alteracoes[`contratos/${cid}/parcelas/${idx}/valorPago`] = parcela.valorEsperado; // pagamento integral rapido
+            alteracoes[`contratos/${cid}/parcelas/${idx}/valorPago`] = parcela.valorEsperado;
         }
     });
     await update(ref(database), alteracoes);
@@ -859,7 +925,7 @@ function calcularEstatisticas() {
     todosContratos.forEach(c => {
         let contratoTemAberto = false;
         c.parcelas.forEach(p => {
-            if (p.paga) pagas++; // Conta também pagas parcialmente como pagas nas estatisticas globais de quantidade
+            if (p.paga) pagas++; 
             else {
                 if (p.prazo < hojeISO) atrasados++;
                 else contratoTemAberto = true;
@@ -878,7 +944,6 @@ function calcularEstatisticas() {
     document.getElementById('est-atrasados').textContent = atrasados;
 }
 
-// --- CÁLCULO DE FATURAMENTO MENSAL ---
 function calcularFaturamentoMensal() {
     const mesAno = document.getElementById('faturamento-mes-select').value;
     if (!mesAno) return;
@@ -894,8 +959,6 @@ function calcularFaturamentoMensal() {
                 if (p.paga) {
                     totalPago += (p.valorPago || 0);
                     qtdPagas++;
-                    // Se foi parcial, a diferença pendente deve ser contabilizada para o futuro? 
-                    // Como foi diluida, aparecerá no mes de cobrança referente ao repasse.
                 } else {
                     totalPendente += (p.valorEsperado || 0);
                     qtdPendentes++;
@@ -930,7 +993,6 @@ function renderEstatistica() {
             const dataPrazo = new Date(p.prazo + "T12:00:00Z");
             dataPrazo.setHours(0,0,0,0);
             
-            // Só é atrasado se não está paga de forma alguma (Paga ou Parc. Paga não contam como atraso)
             if (!p.paga && dataPrazo < hoje) {
                 const diasAtraso = Math.floor((hoje - dataPrazo) / (1000 * 60 * 60 * 24));
                 listaAtrasos.push({
@@ -990,7 +1052,7 @@ document.getElementById('btn-salvar-atrasos').onclick = async () => {
             let contrato = todosContratos.find(c => c.id === cid);
             
             alteracoes[`contratos/${cid}/parcelas/${idx}/paga`] = true;
-            alteracoes[`contratos/${cid}/parcelas/${idx}/valorPago`] = contrato.parcelas[idx].valorEsperado; // marca rápida paga integral
+            alteracoes[`contratos/${cid}/parcelas/${idx}/valorPago`] = contrato.parcelas[idx].valorEsperado;
             marcados++;
         }
     });
@@ -1004,4 +1066,163 @@ document.getElementById('btn-salvar-atrasos').onclick = async () => {
     alert(`${marcados} parcela(s) atualizada(s) para paga(s)!`);
     renderEstatistica();
     calcularEstatisticas();
+};
+
+// --- MÓDULO DE RELATÓRIOS E IMPRESSÃO ---
+const radioRelatorio = document.querySelectorAll('input[name="tipo-relatorio"]');
+radioRelatorio.forEach(radio => radio.addEventListener('change', atualizarOpcoesRelatorio));
+
+function atualizarOpcoesRelatorio() {
+    const tipo = document.querySelector('input[name="tipo-relatorio"]:checked').value;
+    const select = document.getElementById('relatorio-periodo');
+    select.innerHTML = '';
+    
+    let anoAtual = getBrasiliaDate().getFullYear();
+    
+    if (tipo === 'semestral') {
+        select.innerHTML += `<option value="ultimos_6">Últimos seis meses</option>`;
+        for(let a = anoAtual; a >= 2025; a--) {
+            select.innerHTML += `<option value="sem2_${a}">2º Semestre ${a}</option>`;
+            select.innerHTML += `<option value="sem1_${a}">1º Semestre ${a}</option>`;
+        }
+    } else {
+        for(let a = anoAtual; a >= 2025; a--) {
+            select.innerHTML += `<option value="ano_${a}">Ano ${a}</option>`;
+        }
+    }
+}
+
+document.getElementById('btn-gerar-relatorio').onclick = () => {
+    const val = document.getElementById('relatorio-periodo').value;
+    let start, end, labelPeriodo;
+    let hoje = getBrasiliaDate();
+    
+    if (val === 'ultimos_6') {
+        let seisMesesAtras = getBrasiliaDate();
+        seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
+        start = seisMesesAtras.toISOString().split('T')[0];
+        end = hoje.toISOString().split('T')[0];
+        labelPeriodo = "Últimos 6 meses";
+    } else if (val.startsWith('sem1_')) {
+        let ano = val.split('_')[1];
+        start = `${ano}-01-01`; end = `${ano}-06-30`;
+        labelPeriodo = `1º Semestre de ${ano}`;
+    } else if (val.startsWith('sem2_')) {
+        let ano = val.split('_')[1];
+        start = `${ano}-07-01`; end = `${ano}-12-31`;
+        labelPeriodo = `2º Semestre de ${ano}`;
+    } else if (val.startsWith('ano_')) {
+        let ano = val.split('_')[1];
+        start = `${ano}-01-01`; end = `${ano}-12-31`;
+        labelPeriodo = `Ano de ${ano}`;
+    }
+
+    let rel = {
+        qtdTotal: 0,
+        qtdPagas: 0,
+        qtdNaoPagas: 0,
+        valEsperado: 0,
+        valPago: 0,
+        valNaoPago: 0,
+        valEntrada: 0,
+        valTotalArrecadado: 0
+    };
+
+    todosContratos.forEach(c => {
+        let firstParcela = (c.parcelas && c.parcelas.length > 0) ? c.parcelas[0] : null;
+        let entradaSomadaParaEsteContrato = false;
+
+        c.parcelas.forEach(p => {
+            if (p.prazo >= start && p.prazo <= end) {
+                rel.qtdTotal++;
+                
+                let original = parseFloat(p.valorOriginal) || 0;
+                let pago = parseFloat(p.valorPago) || 0;
+                
+                if (p.paga && pago === 0) pago = parseFloat(p.valorEsperado) || original;
+                
+                let faltaPagar = original - pago;
+                if (faltaPagar < 0) faltaPagar = 0; 
+
+                rel.valEsperado += original;
+                rel.valPago += pago;
+                rel.valNaoPago += faltaPagar;
+
+                if (p.paga || pago >= original) {
+                    rel.qtdPagas++;
+                } else {
+                    rel.qtdNaoPagas++; 
+                }
+
+                if (firstParcela && p.numero === firstParcela.numero && !entradaSomadaParaEsteContrato) {
+                    rel.valEntrada += (parseFloat(c.valorEntrada) || 0);
+                    entradaSomadaParaEsteContrato = true; 
+                }
+            }
+        });
+    });
+
+    rel.valTotalArrecadado = rel.valPago + rel.valEntrada;
+
+    const formatCurrency = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+    const formatDateBr = (isoStr) => formatPtBr(new Date(isoStr + "T12:00:00Z"));
+
+    // O "un." foi removido das TDs
+    const relatorioHtml = `
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="font-size: 26px; margin-bottom: 10px; color: #111;">Relatório Gerencial de Contratos</h1>
+            <p style="font-size: 15px; color: #555;"><strong>Período Considerado:</strong> ${labelPeriodo} (De ${formatDateBr(start)} a ${formatDateBr(end)})</p>
+            <p style="font-size: 13px; color: #777;">Gerado em: ${formatPtBr(getBrasiliaDate())} às ${getBrasiliaDate().toLocaleTimeString('pt-BR')}</p>
+        </div>
+        
+        <table class="relatorio-table">
+            <tbody>
+                <tr>
+                    <th style="width: 70%; font-size: 15px;">Total de parcelas (Que vencem/venceram no período)</th>
+                    <td style="font-weight: bold; text-align: right; font-size: 15px;">${rel.qtdTotal}</td>
+                </tr>
+                <tr>
+                    <th>Quantidade de parcelas pagas no período</th>
+                    <td style="color: #21808d; font-weight: bold; text-align: right;">${rel.qtdPagas}</td>
+                </tr>
+                <tr>
+                    <th>Quantidade de parcelas com pendência / não pagas</th>
+                    <td style="color: #c0152f; font-weight: bold; text-align: right;">${rel.qtdNaoPagas}</td>
+                </tr>
+                <tr><td colspan="2" style="background-color: #fff; border: 0; padding: 10px;"></td></tr>
+                <tr>
+                    <th>Total Esperado (Soma do valor original das parcelas listadas)</th>
+                    <td style="text-align: right; font-weight: 600;">${formatCurrency(rel.valEsperado)}</td>
+                </tr>
+                <tr>
+                    <th>Total de Parcelas Pagas (Soma do valor efetivamente pago)</th>
+                    <td style="color: #21808d; font-weight: bold; text-align: right;">${formatCurrency(rel.valPago)}</td>
+                </tr>
+                <tr>
+                    <th>Total Não Pago (Diferença entre o pago e o valor original)</th>
+                    <td style="color: #c0152f; font-weight: bold; text-align: right;">${formatCurrency(rel.valNaoPago)}</td>
+                </tr>
+                <tr><td colspan="2" style="background-color: #fff; border: 0; padding: 10px;"></td></tr>
+                <tr>
+                    <th>Valores de Entrada (Considerados pela data da 1ª parcela)</th>
+                    <td style="text-align: right; font-weight: 600;">${formatCurrency(rel.valEntrada)}</td>
+                </tr>
+                <tr style="background-color: #eaf6f7;">
+                    <th style="font-size: 18px; color: #134252; padding: 16px;">VALOR TOTAL ARRECADADO (Parcelas + Entradas)</th>
+                    <td style="font-size: 18px; font-weight: bold; color: #134252; text-align: right; padding: 16px;">${formatCurrency(rel.valTotalArrecadado)}</td>
+                </tr>
+            </tbody>
+        </table>
+        <div style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 15px; font-size: 11px; text-align: center; color: #888;">
+            Documento gerado automaticamente pelo Sistema de Controle de Pagamentos.
+        </div>
+    `;
+
+    document.getElementById('printable-report').innerHTML = relatorioHtml;
+    document.getElementById('printable-report-container').style.display = 'block';
+    document.getElementById('btn-imprimir-relatorio').classList.remove('hidden');
+};
+
+document.getElementById('btn-imprimir-relatorio').onclick = () => {
+    window.print();
 };

@@ -2992,3 +2992,230 @@ resize: vertical;
 textarea.form-control {
     min-height: 80px;
 }
+/* Quadro de Resumo de Pagamentos do Modal */
+.contract-summary-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-bg-1);
+    padding: 15px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--color-primary);
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+.summary-item {
+    text-align: center;
+    flex: 1;
+    border-right: 1px solid var(--color-border);
+}
+
+.summary-item:last-child {
+    border-right: none;
+}
+
+.summary-label {
+    display: block;
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.summary-value {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Deixa as linhas da tabela clicáveis e reativas ao mouse */
+.clickable-row {
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.clickable-row:hover {
+    background-color: var(--color-bg-2) !important;
+}
+/* ========================================= */
+/* CSS ADICIONAL PARA O MÓDULO DE RELATÓRIOS */
+/* ========================================= */
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Estilos para a tabela do novo Relatório Gerencial */
+.relatorio-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 25px;
+    font-family: var(--font-family-base);
+    color: #111; /* Contraste forte para impressão */
+}
+.relatorio-table th {
+    background-color: #f4f4f4;
+    font-weight: 600;
+    text-align: left;
+    color: #333;
+}
+.relatorio-table th, .relatorio-table td {
+    border: 1px solid #ddd;
+    padding: 12px 16px;
+    font-size: 14px;
+}
+.relatorio-table tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* Regras Estritas de Impressão (Módulo Relatórios) */
+@media print {
+    /* Força o background da página a ficar branco */
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    /* Esconde todos os elementos desnecessários */
+    .no-print, 
+    .dashboard-header, 
+    .screen-header, 
+    .modal {
+        display: none !important;
+    }
+
+    /* Garante que TODAS as telas fiquem escondidas, exceto se for a tela ativa */
+    .screen { display: none !important; }
+    #relatorio-screen.active { display: block !important; }
+
+    /* Força o container do relatório a usar 100% do espaço, sem margens da UI */
+    #printable-report-container {
+        display: block !important;
+        position: absolute !important;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    #printable-report {
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    /* Força linhas e cores escuras da tabela na impressão */
+    .relatorio-table th, .relatorio-table td {
+        border: 1px solid #000 !important;
+        color: #000 !important;
+    }
+}
+/* ========================================= */
+/* NOVAS ESTILIZAÇÕES (SIDEBAR MENU E TOGGLE) */
+/* ========================================= */
+
+.app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    box-shadow: var(--shadow-lg);
+    z-index: 9999;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.app-sidebar.open {
+    transform: translateX(0);
+}
+
+.sidebar-header {
+    padding: var(--space-20);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-2);
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    color: var(--color-primary);
+}
+
+.btn-close-sidebar {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.btn-close-sidebar:hover {
+    color: var(--color-error);
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.sidebar-menu li {
+    border-bottom: 1px solid var(--color-card-border-inner);
+}
+
+.btn-menu {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: var(--space-16) var(--space-20);
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: var(--font-weight-medium);
+}
+
+.btn-menu:hover {
+    background: var(--color-bg-1);
+    color: var(--color-primary);
+    padding-left: 25px; /* Efeito hover animado */
+}
+
+/* Botão de Toggle Sidebar que fica nos cabeçalhos */
+.btn-toggle-sidebar {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-primary);
+    font-size: 20px;
+    padding: var(--space-4) var(--space-12);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-toggle-sidebar:hover {
+    background: var(--color-bg-1);
+}
+
+/* Regra para não imprimir o menu */
+@media print {
+    .app-sidebar, .btn-toggle-sidebar {
+        display: none !important;
+    }
+}
