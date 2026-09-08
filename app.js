@@ -43,7 +43,9 @@ const USER_MAPPING = {
 let currentUser = null;
 let todosContratos = [];
 let todosClientes = [];
+let todasDespesas = [];
 let sortDiasDesc = true;
+const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 // --- FUNÇÕES DE TEMPO UTC-3 E DATAS ---
 function getBrasiliaDate() {
@@ -97,7 +99,6 @@ document.querySelectorAll('.btn-voltar').forEach(btn => {
     btn.addEventListener('click', () => showScreen('dashboard-screen'));
 });
 
-// Fecha modals genéricos e tira a classe do body p/ impressões seguras
 document.querySelectorAll('.btn-fechar-modal').forEach(btn => {
     btn.addEventListener('click', (e) => {
         e.target.closest('.modal').classList.add('hidden');
@@ -132,6 +133,10 @@ document.getElementById('nav-pesquisa-data').onclick = () => showScreen('pesquis
 document.getElementById('nav-basedados').onclick = () => { renderBaseDados(); showScreen('basedados-screen'); };
 document.getElementById('nav-estatistica').onclick = () => { renderEstatistica(); showScreen('estatistica-screen'); };
 document.getElementById('nav-perfil').onclick = () => document.getElementById('profile-modal').classList.remove('hidden');
+
+// Novos Menus
+document.getElementById('nav-despesas').onclick = () => { renderDespesas(); showScreen('despesas-screen'); };
+document.getElementById('nav-balanco').onclick = () => showScreen('balanco-screen');
 
 document.getElementById('nav-relatorio').onclick = () => {
     atualizarOpcoesRelatorio();
@@ -221,6 +226,7 @@ document.getElementById('password-form').onsubmit = async (e) => {
 
 // --- SINCRONIZAÇÃO BD ---
 function carregarDados() {
+    // Carregar Contratos
     onValue(ref(database, 'contratos'), (snapshot) => {
         todosContratos = [];
         if (snapshot.exists()) {
@@ -243,6 +249,7 @@ function carregarDados() {
         if(!document.getElementById('basedados-screen').classList.contains('hidden')) renderBaseDados();
     });
 
+    // Carregar Clientes
     onValue(ref(database, 'clientes'), (snapshot) => {
         todosClientes = [];
         if (snapshot.exists()) {
@@ -254,6 +261,18 @@ function carregarDados() {
         todosClientes.sort((a, b) => a.nome.localeCompare(b.nome));
         atualizarSelectClientes();
         if(!document.getElementById('catalogo-screen').classList.contains('hidden')) renderCatalogo();
+    });
+
+    // Carregar Despesas
+    onValue(ref(database, 'despesas'), (snapshot) => {
+        todasDespesas = [];
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            for (let key in data) {
+                todasDespesas.push({ id: key, ...data[key] });
+            }
+        }
+        if(!document.getElementById('despesas-screen').classList.contains('hidden')) renderDespesas();
     });
 }
 
@@ -305,7 +324,6 @@ function renderCatalogo() {
 }
 document.getElementById('filtro-nome-cliente').addEventListener('input', renderCatalogo);
 
-// --- EDIÇÃO E EXCLUSÃO DE CLIENTES ---
 window.abrirEdicaoCliente = (id) => {
     const cli = todosClientes.find(c => c.id === id);
     if (!cli) return;
@@ -493,7 +511,6 @@ document.getElementById('cadastro-form').addEventListener('submit', async (e) =>
     showScreen('dashboard-screen');
 });
 
-// --- LÓGICA DE RENDERIZAÇÃO DE PARCELAS PARA EDIÇÃO ---
 function getStatusSituacao(p) {
     if(p.paga) {
         return (p.valorPago < p.valorEsperado) ? "Paga Parc." : "Pago";
@@ -706,7 +723,6 @@ function criarNovaParcela(memParcelas, diff) {
     };
 }
 
-// --- VISUALIZAÇÃO GERAL DO CONTRATO (NOVO) ---
 window.abrirVisualizacaoContrato = (id, contextoEdicao) => {
     const c = todosContratos.find(x => x.id === id);
     if (!c) return;
@@ -759,7 +775,6 @@ window.abrirVisualizacaoContrato = (id, contextoEdicao) => {
         `;
     });
 
-    // Configura botão de Editar dinâmico para abrir conforme a tela origem
     const btnEditarView = document.getElementById('btn-editar-view');
     btnEditarView.onclick = () => {
         document.getElementById('view-contrato-modal').classList.add('hidden');
@@ -773,11 +788,9 @@ window.abrirVisualizacaoContrato = (id, contextoEdicao) => {
     };
 
     document.getElementById('view-contrato-modal').classList.remove('hidden');
-    // Adiciona classe ao body para otimizar impressão excluindo o resto
     document.body.classList.add('modal-is-open');
 };
 
-// --- PESQUISA CLIENTES (CONTRATOS) ---
 document.getElementById('btn-pesquisar-cliente').onclick = () => {
     const nome = document.getElementById('pesquisa-cliente-nome').value.toUpperCase();
     const tbody = document.querySelector('#tabela-pesquisa-cliente tbody');
@@ -861,7 +874,6 @@ document.getElementById('parcelas-modal-form').addEventListener('submit', async 
     document.getElementById('btn-pesquisar-cliente').click();
 });
 
-// --- BASE DE DADOS E EDIÇÃO / EXCLUSÃO DE CONTRATOS ---
 function renderBaseDados() {
     const statusFiltro = document.getElementById('filtro-situacao').value;
     const dataFiltro = document.getElementById('filtro-data').value;
@@ -956,7 +968,6 @@ document.getElementById('btn-confirmar-exclusao').onclick = async () => {
     }
 };
 
-// --- PESQUISA POR DATA (NOVO: POR PERÍODO) ---
 document.getElementById('btn-pesquisar-data').onclick = () => {
     const dataInicio = document.getElementById('pesquisa-data-inicio').value;
     const dataFim = document.getElementById('pesquisa-data-fim').value;
@@ -1006,8 +1017,6 @@ document.getElementById('btn-salvar-pesquisa-data').onclick = async () => {
     document.getElementById('btn-pesquisar-data').click();
 };
 
-
-// --- ESTATÍSTICA E DASHBOARD ---
 function calcularEstatisticas() {
     let pagas = 0, abertos = 0, atrasados = 0;
     let vencemHoje = 0;
@@ -1039,10 +1048,7 @@ function calcularFaturamentoMensal() {
     const mesAno = document.getElementById('faturamento-mes-select').value;
     if (!mesAno) return;
 
-    let totalPago = 0;
-    let qtdPagas = 0;
-    let totalPendente = 0;
-    let qtdPendentes = 0;
+    let totalPago = 0, qtdPagas = 0, totalPendente = 0, qtdPendentes = 0;
 
     todosContratos.forEach(c => {
         c.parcelas.forEach(p => {
@@ -1060,7 +1066,6 @@ function calcularFaturamentoMensal() {
 
     document.getElementById('fat-pago-valor').textContent = `R$ ${totalPago.toFixed(2)}`;
     document.getElementById('fat-pago-qtd').textContent = `${qtdPagas} parcela(s) com pgto.`;
-
     document.getElementById('fat-pendente-valor').textContent = `R$ ${totalPendente.toFixed(2)}`;
     document.getElementById('fat-pendente-qtd').textContent = `${qtdPendentes} parcela(s) não pagas`;
 }
@@ -1148,10 +1153,7 @@ document.getElementById('btn-salvar-atrasos').onclick = async () => {
         }
     });
 
-    if (marcados === 0) {
-        alert("Nenhuma parcela foi marcada como paga.");
-        return;
-    }
+    if (marcados === 0) return alert("Nenhuma parcela foi marcada como paga.");
 
     await update(ref(database), alteracoes);
     alert(`${marcados} parcela(s) atualizada(s) para paga(s)!`);
@@ -1159,7 +1161,6 @@ document.getElementById('btn-salvar-atrasos').onclick = async () => {
     calcularEstatisticas();
 };
 
-// --- MÓDULO DE RELATÓRIOS E IMPRESSÃO ---
 const radioRelatorio = document.querySelectorAll('input[name="tipo-relatorio"]');
 radioRelatorio.forEach(radio => radio.addEventListener('change', atualizarOpcoesRelatorio));
 
@@ -1208,16 +1209,7 @@ document.getElementById('btn-gerar-relatorio').onclick = () => {
         labelPeriodo = `Ano de ${ano}`;
     }
 
-    let rel = {
-        qtdTotal: 0,
-        qtdPagas: 0,
-        qtdNaoPagas: 0,
-        valEsperado: 0,
-        valPago: 0,
-        valNaoPago: 0,
-        valEntrada: 0,
-        valTotalArrecadado: 0
-    };
+    let rel = { qtdTotal: 0, qtdPagas: 0, qtdNaoPagas: 0, valEsperado: 0, valPago: 0, valNaoPago: 0, valEntrada: 0, valTotalArrecadado: 0 };
 
     todosContratos.forEach(c => {
         let firstParcela = (c.parcelas && c.parcelas.length > 0) ? c.parcelas[0] : null;
@@ -1239,11 +1231,8 @@ document.getElementById('btn-gerar-relatorio').onclick = () => {
                 rel.valPago += pago;
                 rel.valNaoPago += faltaPagar;
 
-                if (p.paga || pago >= original) {
-                    rel.qtdPagas++;
-                } else {
-                    rel.qtdNaoPagas++; 
-                }
+                if (p.paga || pago >= original) rel.qtdPagas++;
+                else rel.qtdNaoPagas++; 
 
                 if (firstParcela && p.numero === firstParcela.numero && !entradaSomadaParaEsteContrato) {
                     rel.valEntrada += (parseFloat(c.valorEntrada) || 0);
@@ -1313,6 +1302,365 @@ document.getElementById('btn-gerar-relatorio').onclick = () => {
     document.getElementById('btn-imprimir-relatorio').classList.remove('hidden');
 };
 
-document.getElementById('btn-imprimir-relatorio').onclick = () => {
-    window.print();
+document.getElementById('btn-imprimir-relatorio').onclick = () => { window.print(); };
+
+/* ========================================= */
+/* MÓDULO DE DESPESAS                        */
+/* ========================================= */
+document.getElementById('btn-nova-despesa').onclick = () => {
+    document.getElementById('form-despesa').reset();
+    document.getElementById('cad-despesa-campos-dinamicos').innerHTML = "";
+    document.getElementById('form-nova-despesa-container').classList.remove('hidden');
+};
+document.getElementById('btn-limpar-despesa').onclick = () => {
+    document.getElementById('form-despesa').reset();
+    document.getElementById('cad-despesa-campos-dinamicos').innerHTML = "";
+};
+
+document.getElementById('cad-despesa-tipo').addEventListener('change', (e) => {
+    const tipo = e.target.value;
+    const container = document.getElementById('cad-despesa-campos-dinamicos');
+    container.innerHTML = "";
+    
+    if (tipo === 'Fixa') {
+        let html = '<p>Preencha os valores para os meses desejados (Opcional):</p>';
+        meses.forEach((m, i) => {
+            html += `<div class="despesa-mes-row"><label style="width:50px;">${m}</label><input type="number" step="0.01" class="form-control desp-val-mes" data-mes="${i}" placeholder="Valor R$"></div>`;
+        });
+        container.innerHTML = html;
+    } else if (tipo === 'Unica') {
+        let html = `
+            <div class="form-group"><label class="form-label">Mês Referência</label>
+                <select id="desp-unica-mes" class="form-control" required><option value="">-- Mês --</option>
+                ${meses.map((m,i)=>`<option value="${i}">${m}</option>`).join('')}</select>
+            </div>
+            <div class="form-group"><label class="form-label">Prazo</label><input type="date" id="desp-unica-prazo" class="form-control" required></div>
+            <div class="form-group"><label class="form-label">Valor R$</label><input type="number" step="0.01" id="desp-unica-valor" class="form-control" required></div>
+        `;
+        container.innerHTML = html;
+    } else if (tipo === 'Parcelada') {
+        container.innerHTML = `
+            <div class="form-group"><label class="form-label">Qtd Parcelas *</label><input type="number" id="desp-parc-qtd" class="form-control" required min="1"></div>
+            <div class="form-group"><label class="form-label">Tipo de Parcelas *</label>
+                <select id="desp-parc-tipo" class="form-control" required><option value="">-- Selecione --</option><option value="Iguais">Iguais</option><option value="Diferentes">Diferentes</option></select>
+            </div>
+            <div id="desp-parc-detalhes"></div>
+        `;
+        document.getElementById('desp-parc-tipo').addEventListener('change', renderizarCamposParcelada);
+        document.getElementById('desp-parc-qtd').addEventListener('input', renderizarCamposParcelada);
+    }
+});
+
+function renderizarCamposParcelada() {
+    const qtd = parseInt(document.getElementById('desp-parc-qtd').value) || 0;
+    const tipo = document.getElementById('desp-parc-tipo').value;
+    const div = document.getElementById('desp-parc-detalhes');
+    div.innerHTML = "";
+    if (qtd <= 0 || !tipo) return;
+
+    if (tipo === 'Iguais') {
+        div.innerHTML = `
+            <div class="form-group"><label class="form-label">Valor (Cada parcela)</label><input type="number" step="0.01" id="desp-parc-val" class="form-control" required></div>
+            <div class="form-group"><label class="form-label">Dia do Vencimento Mensal</label><input type="number" id="desp-parc-dia" class="form-control" min="1" max="31" required></div>
+            <div class="form-group"><label class="form-label">Mês/Ano de Início</label><input type="month" id="desp-parc-inicio" class="form-control" required></div>
+        `;
+    } else {
+        for(let i=1; i<=qtd; i++) {
+            div.innerHTML += `
+                <div class="despesa-mes-row">
+                    <label>P${i}</label>
+                    <input type="date" class="form-control parc-dif-prazo" required>
+                    <input type="number" step="0.01" class="form-control parc-dif-val" placeholder="Valor" required>
+                    <label><input type="checkbox" class="parc-dif-pago"> Pago?</label>
+                </div>
+            `;
+        }
+    }
+}
+
+document.getElementById('form-despesa').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById('cad-despesa-nome').value;
+    const tipo = document.getElementById('cad-despesa-tipo').value;
+    const anoAtual = getBrasiliaDate().getFullYear();
+    let despesa = { nome, tipo, dataRegistro: getTodayStringISO() };
+
+    if (tipo === 'Fixa') {
+        despesa.ano = anoAtual;
+        despesa.valoresMensais = {};
+        document.querySelectorAll('.desp-val-mes').forEach(inp => {
+            let val = parseFloat(inp.value);
+            if (!isNaN(val)) despesa.valoresMensais[inp.dataset.mes] = { valor: val, pago: false };
+        });
+    } else if (tipo === 'Unica') {
+        despesa.mes = parseInt(document.getElementById('desp-unica-mes').value);
+        despesa.prazo = document.getElementById('desp-unica-prazo').value;
+        despesa.valor = parseFloat(document.getElementById('desp-unica-valor').value);
+        despesa.paga = false;
+    } else if (tipo === 'Parcelada') {
+        let qtd = parseInt(document.getElementById('desp-parc-qtd').value);
+        let subtipo = document.getElementById('desp-parc-tipo').value;
+        despesa.parcelas = [];
+        if (subtipo === 'Iguais') {
+            let val = parseFloat(document.getElementById('desp-parc-val').value);
+            let dia = document.getElementById('desp-parc-dia').value.padStart(2,'0');
+            let inicio = document.getElementById('desp-parc-inicio').value; 
+            let dataBase = `${inicio}-${dia}`;
+            for (let i = 0; i < qtd; i++) {
+                despesa.parcelas.push({ numero: i+1, prazo: somarMesesData(dataBase, i), valor: val, paga: false });
+            }
+        } else {
+            let prazos = document.querySelectorAll('.parc-dif-prazo');
+            let vals = document.querySelectorAll('.parc-dif-val');
+            let pagos = document.querySelectorAll('.parc-dif-pago');
+            for (let i = 0; i < qtd; i++) {
+                despesa.parcelas.push({ numero: i+1, prazo: prazos[i].value, valor: parseFloat(vals[i].value), paga: pagos[i].checked });
+            }
+        }
+    }
+
+    await push(ref(database, 'despesas'), despesa);
+    alert('Despesa cadastrada!');
+    document.getElementById('btn-limpar-despesa').click();
+    renderDespesas();
+});
+
+function obterClasseStatus(prazo, pago) {
+    if(pago) return 'bg-paid';
+    if(prazo && prazo < getTodayStringISO()) return 'bg-late';
+    return 'bg-normal';
+}
+
+function renderDespesas() {
+    const tFixas = document.querySelector('#tabela-despesas-fixas tbody');
+    const tUnicas = document.querySelector('#tabela-despesas-unicas tbody');
+    const tParc = document.querySelector('#tabela-despesas-parceladas tbody');
+    tFixas.innerHTML = ""; tUnicas.innerHTML = ""; tParc.innerHTML = "";
+    const anoAtual = getBrasiliaDate().getFullYear();
+
+    todasDespesas.forEach(d => {
+        if (d.tipo === 'Fixa' && d.ano === anoAtual) {
+            let html = `<tr><td>${d.nome}</td>`;
+            for(let i=0; i<12; i++) {
+                let mData = d.valoresMensais && d.valoresMensais[i] ? d.valoresMensais[i] : null;
+                if(!mData) { html += `<td>-</td>`; continue; }
+                let cls = mData.pago ? 'bg-paid' : 'bg-normal';
+                html += `<td class="${cls}">R$ ${mData.valor.toFixed(2)}</td>`;
+            }
+            html += `<td><button class="btn btn--sm btn--warning" onclick="abrirEditDespesa('${d.id}')">Editar</button></td></tr>`;
+            tFixas.innerHTML += html;
+        } 
+        else if (d.tipo === 'Unica') {
+            let cls = obterClasseStatus(d.prazo, d.paga);
+            tUnicas.innerHTML += `
+                <tr>
+                    <td>${d.nome}</td>
+                    <td>${meses[d.mes]}</td>
+                    <td>${formatPtBr(new Date(d.prazo+"T12:00:00Z"))}</td>
+                    <td class="${cls}">R$ ${d.valor.toFixed(2)}</td>
+                    <td><button class="btn btn--sm btn--warning" onclick="abrirEditDespesa('${d.id}')">Editar</button></td>
+                </tr>
+            `;
+        }
+        else if (d.tipo === 'Parcelada') {
+            let totalPago = 0, total = 0, emAtraso = false, prox = null;
+            d.parcelas.forEach(p => {
+                total += p.valor;
+                if(p.paga) totalPago += p.valor;
+                else {
+                    if(p.prazo < getTodayStringISO()) emAtraso = true;
+                    if(!prox || p.prazo < prox.prazo) prox = p;
+                }
+            });
+            let situacaoCls = (totalPago === total) ? 'bg-paid' : (emAtraso ? 'bg-late' : 'bg-warning-light');
+            let mesIni = d.parcelas.length > 0 ? formatPtBr(new Date(d.parcelas[0].prazo+"T12:00:00Z")).substring(3) : '-';
+            
+            tParc.innerHTML += `
+                <tr>
+                    <td>${d.nome}</td>
+                    <td>${mesIni}</td>
+                    <td>${d.parcelas.length} prazos</td>
+                    <td class="${situacaoCls}">R$ ${total.toFixed(2)}</td>
+                    <td>${d.parcelas.length}</td>
+                    <td>-</td>
+                    <td>${prox ? formatPtBr(new Date(prox.prazo+"T12:00:00Z")) : '-'}</td>
+                    <td>
+                        <button class="btn btn--sm btn--info" onclick="verParcelasDespesa('${d.id}')">Ver</button>
+                        <button class="btn btn--sm btn--warning" onclick="abrirEditDespesa('${d.id}')">Editar</button>
+                    </td>
+                </tr>
+            `;
+        }
+    });
+}
+
+window.abrirEditDespesa = (id) => {
+    const d = todasDespesas.find(x => x.id === id);
+    if(!d) return;
+    document.getElementById('edit-despesa-id').value = d.id;
+    document.getElementById('edit-despesa-tipo-hidden').value = d.tipo;
+    const din = document.getElementById('edit-despesa-dinamico');
+    din.innerHTML = `<h4>${d.nome} (${d.tipo})</h4>`;
+
+    if (d.tipo === 'Fixa') {
+        for(let i=0; i<12; i++) {
+            let mData = d.valoresMensais && d.valoresMensais[i] ? d.valoresMensais[i] : {valor: '', pago: false};
+            din.innerHTML += `
+                <div class="despesa-mes-row">
+                    <label style="width:40px;">${meses[i]}</label>
+                    <input type="number" step="0.01" class="form-control ed-fix-val" data-mes="${i}" value="${mData.valor}" placeholder="Valor">
+                    <label><input type="checkbox" class="ed-fix-chk" data-mes="${i}" ${mData.pago?'checked':''}> Pago?</label>
+                </div>
+            `;
+        }
+    } else if (d.tipo === 'Unica') {
+        din.innerHTML += `
+            <div class="form-group"><label>Mês</label>
+                <select class="form-control ed-uni-mes">${meses.map((m,i)=>`<option value="${i}" ${d.mes===i?'selected':''}>${m}</option>`).join('')}</select>
+            </div>
+            <div class="form-group"><label>Prazo</label><input type="date" class="form-control ed-uni-prazo" value="${d.prazo}"></div>
+            <div class="form-group"><label>Valor</label><input type="number" step="0.01" class="form-control ed-uni-val" value="${d.valor}"></div>
+            <label><input type="checkbox" class="ed-uni-chk" ${d.paga?'checked':''}> Pago?</label>
+        `;
+    } else if (d.tipo === 'Parcelada') {
+        d.parcelas.forEach((p, idx) => {
+            din.innerHTML += `
+                <div class="despesa-mes-row">
+                    <label>P${p.numero}</label>
+                    <input type="date" class="form-control ed-parc-prazo" data-idx="${idx}" value="${p.prazo}">
+                    <input type="number" step="0.01" class="form-control ed-parc-val" data-idx="${idx}" value="${p.valor}">
+                    <label><input type="checkbox" class="ed-parc-chk" data-idx="${idx}" ${p.paga?'checked':''}> Pago?</label>
+                </div>
+            `;
+        });
+    }
+    document.getElementById('edit-despesa-modal').classList.remove('hidden');
+};
+
+document.getElementById('edit-despesa-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-despesa-id').value;
+    const tipo = document.getElementById('edit-despesa-tipo-hidden').value;
+    let up = {};
+
+    if (tipo === 'Fixa') {
+        up[`despesas/${id}/valoresMensais`] = {};
+        document.querySelectorAll('.ed-fix-val').forEach(inp => {
+            let m = inp.dataset.mes;
+            let val = parseFloat(inp.value);
+            let pago = document.querySelector(`.ed-fix-chk[data-mes="${m}"]`).checked;
+            if(!isNaN(val)) up[`despesas/${id}/valoresMensais/${m}`] = { valor: val, pago: pago };
+        });
+    } else if (tipo === 'Unica') {
+        up[`despesas/${id}/mes`] = parseInt(document.querySelector('.ed-uni-mes').value);
+        up[`despesas/${id}/prazo`] = document.querySelector('.ed-uni-prazo').value;
+        up[`despesas/${id}/valor`] = parseFloat(document.querySelector('.ed-uni-val').value);
+        up[`despesas/${id}/paga`] = document.querySelector('.ed-uni-chk').checked;
+    } else if (tipo === 'Parcelada') {
+        let novas = [];
+        document.querySelectorAll('.ed-parc-prazo').forEach((inp, i) => {
+            novas.push({
+                numero: i+1,
+                prazo: inp.value,
+                valor: parseFloat(document.querySelectorAll('.ed-parc-val')[i].value),
+                paga: document.querySelectorAll('.ed-parc-chk')[i].checked
+            });
+        });
+        up[`despesas/${id}/parcelas`] = novas;
+    }
+    await update(ref(database), up);
+    alert('Atualizado!');
+    document.getElementById('edit-despesa-modal').classList.add('hidden');
+    renderDespesas();
+});
+
+document.getElementById('btn-excluir-despesa').onclick = async () => {
+    if(confirm("Excluir esta despesa?")) {
+        const id = document.getElementById('edit-despesa-id').value;
+        await remove(ref(database, `despesas/${id}`));
+        document.getElementById('edit-despesa-modal').classList.add('hidden');
+        renderDespesas();
+    }
+};
+
+window.verParcelasDespesa = (id) => {
+    const d = todasDespesas.find(x => x.id === id);
+    const tbody = document.querySelector('#view-despesa-table tbody');
+    tbody.innerHTML = "";
+    d.parcelas.forEach(p => {
+        let cls = obterClasseStatus(p.prazo, p.paga);
+        let sit = p.paga ? 'Pago' : (p.prazo < getTodayStringISO() ? 'Atrasado' : 'Aberto');
+        tbody.innerHTML += `<tr><td>${p.numero}</td><td>${formatPtBr(new Date(p.prazo+"T12:00:00Z"))}</td><td>R$ ${p.valor.toFixed(2)}</td><td class="${cls}">${sit}</td></tr>`;
+    });
+    document.getElementById('view-despesa-modal').classList.remove('hidden');
+};
+
+/* ========================================= */
+/* MÓDULO BALANÇO                            */
+/* ========================================= */
+document.getElementById('balanco-tipo-filtro').addEventListener('change', (e) => {
+    if(e.target.value === 'mensal') {
+        document.getElementById('balanco-mes').classList.remove('hidden');
+        document.getElementById('balanco-ano').classList.add('hidden');
+    } else {
+        document.getElementById('balanco-mes').classList.add('hidden');
+        document.getElementById('balanco-ano').classList.remove('hidden');
+    }
+});
+
+document.getElementById('btn-gerar-balanco').onclick = () => {
+    const tipo = document.getElementById('balanco-tipo-filtro').value;
+    let filtroStr = tipo === 'mensal' ? document.getElementById('balanco-mes').value : document.getElementById('balanco-ano').value;
+    if(!filtroStr) return alert("Selecione o mês ou ano");
+
+    let fat = 0, despesa = 0, fatPot = 0, despPot = 0; 
+
+    // Faturamento: Contratos recebidos
+    todosContratos.forEach(c => {
+        c.parcelas.forEach(p => {
+            if (p.prazo.startsWith(filtroStr)) {
+                fatPot += p.valorEsperado;
+                if(p.paga) fat += (p.valorPago || p.valorEsperado);
+            }
+        });
+    });
+
+    // Despesas
+    todasDespesas.forEach(d => {
+        if (d.tipo === 'Fixa') {
+            if(tipo === 'anual' && String(d.ano) === filtroStr) {
+                for(let m in d.valoresMensais) {
+                    despPot += d.valoresMensais[m].valor;
+                    if(d.valoresMensais[m].pago) despesa += d.valoresMensais[m].valor;
+                }
+            } else if (tipo === 'mensal' && String(d.ano) === filtroStr.split('-')[0]) {
+                let mesIdx = parseInt(filtroStr.split('-')[1]) - 1;
+                if(d.valoresMensais[mesIdx]) {
+                    despPot += d.valoresMensais[mesIdx].valor;
+                    if(d.valoresMensais[mesIdx].pago) despesa += d.valoresMensais[mesIdx].valor;
+                }
+            }
+        } else if (d.tipo === 'Unica') {
+            if (d.prazo.startsWith(filtroStr)) {
+                despPot += d.valor;
+                if(d.paga) despesa += d.valor;
+            }
+        } else if (d.tipo === 'Parcelada') {
+            d.parcelas.forEach(p => {
+                if (p.prazo.startsWith(filtroStr)) {
+                    despPot += p.valor;
+                    if(p.paga) despesa += p.valor;
+                }
+            });
+        }
+    });
+
+    let lucro = fat - despesa;
+
+    document.getElementById('bal-faturamento').textContent = `R$ ${fat.toFixed(2)}`;
+    document.getElementById('bal-despesas').textContent = `R$ ${despesa.toFixed(2)}`;
+    document.getElementById('bal-lucro').textContent = `R$ ${lucro.toFixed(2)}`;
+    
+    document.getElementById('bal-potencial-fat').textContent = `R$ ${fatPot.toFixed(2)}`;
+    document.getElementById('bal-potencial-desp').textContent = `R$ ${despPot.toFixed(2)}`;
 };
